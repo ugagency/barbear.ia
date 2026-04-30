@@ -1,0 +1,617 @@
+'use server'
+
+import { revalidatePath } from 'next/cache'
+import { z } from 'zod'
+
+import { createClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase/admin'
+import {
+  criarCliente,
+  criarAssinatura,
+  cancelarAssinatura,
+  listarCobrancas,
+  proximaDataCobranca,
+} from '@/lib/asaas'
+import { PRECOS, FUNDADORES_TOTAL_VAGAS } from '@/lib/constants'
+import type { Bloqueio, HorarioFixo, Servico } from '@/types'
+
+type ActionResult<T = undefined> =
+  | { success: true; data?: T }
+  | { success: false; error: string }
+
+type Context =
+  | { ok: true; supabase: Awaited<ReturnType<typeof createClient>>; barbeariaId: string }
+  | { ok: false; error: string }
+
+async function getContext(): Promise<Context> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Sessão expirada.' }
+
+  const { data: vinculo } = await supabase
+    .from('usuarios_barbearias')
+    .select('barbearia_id, role')
+    .eq('user_id', user.id)
+    .maybeSingle()
+  if (!vinculo) return { ok: false, error: 'Barbearia não encontrada.' }
+  return {
+    ok: true,
+    supabase,
+    barbeariaId: vinculo.barbearia_id as string,
+  }
+}
+
+// ============================================
+// Aba Barbearia
+// ============================================
+
+const barbeariaSchema = z.object({
+  nome: z.string().min(2, 'Nome inválido'),
+  telefone: z.string().min(10, 'Telefone inválido').max(20),
+  email: z.string().email('Email inválido').or(z.literal('')).optional(),
+})
+
+export async function atualizarBarbearia(
+  input: z.infer<typeof barbeariaSchema>,
+): Promise<ActionResult> {
+  const parsed = barbeariaSchema.safeParse(input)
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' }
+  }
+  const ctx = await getContext()
+  if (!ctx.ok) return { success: false, error: ctx.error }
+
+  const { error } = await ctx.supabase
+    .from('barbearias')
+    .update({
+      nome: parsed.data.nome.trim(),
+      telefone: parsed.data.telefone.replace(/\s/g, ''),
+      email: parsed.data.email || null,
+    })
+    .eq('id', ctx.barbeariaId)
+
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/configuracoes')
+  revalidatePath('/', 'layout')
+  return { success: true }
+}
+
+const ALLOWED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp']
+const MAX_LOGO_BYTES = 2 * 1024 * 1024
+
+export async function uploadLogo(formData: FormData): Promise<ActionResult<{ url: string }>> {
+  const ctx = await getContext()
+  if (!ctx.ok) return { success: false, error: ctx.error }
+
+  const file = formData.get('file')
+  if (!(file instanceof File)) {
+    return { success: false, error: 'Arquivo inválido.' }
+  }
+  if (!ALLOWED_LOGO_TYPES.includes(file.type)) {
+    return { success: false, error: 'Apenas PNG, JPG ou WebP.' }
+  }
+  if (file.size > MAX_LOGO_BYTES) {
+    return { success: false, error: 'Arquivo maior que 2MB.' }
+  }
+
+  const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
+  const path = `${ctx.barbeariaId}/logo.${ext}`
+
+  const buffer = Buffer.from(await file.arrayBuffer())
+  const { error: uploadErr } = await supabaseAdmin.storage
+    .from('logos')
+    .upload(path, buffer, {
+      contentType: file.type,
+      upsert: true,
+    })
+
+  if (uploadErr) {
+    if (uploadErr.message.toLowerCase().includes('bucket')) {
+      return {
+        success: false,
+        error: 'Bucket "logos" não existe. Crie-o no Supabase Storage.',
+      }
+    }
+    return { success: false, error: uploadErr.message }
+  }
+
+  const {
+    data: { publicUrl },
+  } = supabaseAdmin.storage.from('logos').getPublicUrl(path)
+  const url = `${publicUrl}?v=${Date.now()}`
+
+  const { error } = await ctx.supabase
+    .from('barbearias')
+    .update({ logo_url: url })
+    .eq('id', ctx.barbeariaId)
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/configuracoes')
+  revalidatePath('/', 'layout')
+  return { success: true, data: { url } }
+}
+
+// ============================================
+// Aba Barbeiros
+// ============================================
+
+const servicoSchema = z.object({
+  nome: z.string().min(1, 'Nome obrigatório'),
+  preco: z.number().min(0, 'Preço inválido'),
+  duracao_min: z.number().int().min(5, 'Duração mínima 5 min'),
+})
+
+const barbeiroBaseSchema = z.object({
+  nome: z.string().min(2, 'Nome inválido'),
+  telefone: z.string().min(10, 'Telefone inválido'),
+  calendar_id: z.string().optional().or(z.literal('')),
+  servicos: z.array(servicoSchema).min(1, 'Adicione ao menos 1 serviço'),
+  ativo: z.boolean(),
+})
+
+export async function criarBarbeiro(
+  input: z.infer<typeof barbeiroBaseSchema>,
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = barbeiroBaseSchema.safeParse(input)
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' }
+  }
+  const ctx = await getContext()
+  if (!ctx.ok) return { success: false, error: ctx.error }
+
+  const { data, error } = await ctx.supabase
+    .from('barbeiros')
+    .insert({
+      barbearia_id: ctx.barbeariaId,
+      nome: parsed.data.nome.trim(),
+      telefone: parsed.data.telefone.replace(/\D/g, ''),
+      calendar_id: parsed.data.calendar_id || null,
+      servicos: parsed.data.servicos,
+      ativo: parsed.data.ativo,
+    })
+    .select('id')
+    .single()
+
+  if (error || !data) {
+    return { success: false, error: error?.message ?? 'Erro ao criar barbeiro.' }
+  }
+  revalidatePath('/configuracoes')
+  return { success: true, data: { id: data.id as string } }
+}
+
+export async function atualizarBarbeiro(
+  id: string,
+  input: z.infer<typeof barbeiroBaseSchema>,
+): Promise<ActionResult> {
+  const parsed = barbeiroBaseSchema.safeParse(input)
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' }
+  }
+  const ctx = await getContext()
+  if (!ctx.ok) return { success: false, error: ctx.error }
+
+  const { error } = await ctx.supabase
+    .from('barbeiros')
+    .update({
+      nome: parsed.data.nome.trim(),
+      telefone: parsed.data.telefone.replace(/\D/g, ''),
+      calendar_id: parsed.data.calendar_id || null,
+      servicos: parsed.data.servicos,
+      ativo: parsed.data.ativo,
+    })
+    .eq('id', id)
+
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/configuracoes')
+  return { success: true }
+}
+
+export async function toggleAtivoBarbeiro(
+  id: string,
+  ativo: boolean,
+): Promise<ActionResult> {
+  const ctx = await getContext()
+  if (!ctx.ok) return { success: false, error: ctx.error }
+  const { error } = await ctx.supabase
+    .from('barbeiros')
+    .update({ ativo })
+    .eq('id', id)
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/configuracoes')
+  return { success: true }
+}
+
+export async function removerBarbeiro(id: string): Promise<ActionResult> {
+  const ctx = await getContext()
+  if (!ctx.ok) return { success: false, error: ctx.error }
+
+  const agora = new Date().toISOString()
+  const { count } = await ctx.supabase
+    .from('agendamentos')
+    .select('id', { count: 'exact', head: true })
+    .eq('barbeiro_id', id)
+    .gte('inicio_at', agora)
+    .neq('status', 'cancelado')
+
+  if (count && count > 0) {
+    return {
+      success: false,
+      error: 'Este barbeiro tem agendamentos futuros. Cancele-os primeiro.',
+    }
+  }
+
+  const { error } = await ctx.supabase.from('barbeiros').delete().eq('id', id)
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/configuracoes')
+  return { success: true }
+}
+
+// ============================================
+// Aba Horários
+// ============================================
+
+const horarioDiaSchema = z.object({
+  ativo: z.boolean(),
+  inicio: z.string().regex(/^\d{2}:\d{2}$/, 'Formato HH:MM'),
+  fim: z.string().regex(/^\d{2}:\d{2}$/, 'Formato HH:MM'),
+})
+
+const bloqueioSchema = z.object({
+  dia_semana: z.string().min(1),
+  inicio: z.string().regex(/^\d{2}:\d{2}$/),
+  fim: z.string().regex(/^\d{2}:\d{2}$/),
+  motivo: z.string().min(1),
+})
+
+const horarioFixoSchema = z.object({
+  dia_semana: z.string().min(1),
+  inicio: z.string().regex(/^\d{2}:\d{2}$/),
+  fim: z.string().regex(/^\d{2}:\d{2}$/),
+  cliente: z.string().min(1),
+})
+
+const horariosSchema = z.object({
+  horarios: z.record(z.string(), horarioDiaSchema),
+  bloqueios: z.array(bloqueioSchema),
+  horarios_fixos: z.array(horarioFixoSchema),
+})
+
+export type AtualizarHorariosInput = {
+  horarios: Record<string, { ativo: boolean; inicio: string; fim: string }>
+  bloqueios: Bloqueio[]
+  horarios_fixos: HorarioFixo[]
+}
+
+export async function atualizarHorariosBarbeiro(
+  id: string,
+  input: AtualizarHorariosInput,
+): Promise<ActionResult> {
+  const parsed = horariosSchema.safeParse(input)
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' }
+  }
+  const ctx = await getContext()
+  if (!ctx.ok) return { success: false, error: ctx.error }
+
+  // Apenas dias ativos vão para horarios; demais omitidos
+  const horariosOut: Record<string, { inicio: string; fim: string }> = {}
+  for (const [dia, h] of Object.entries(parsed.data.horarios)) {
+    if (h.ativo) horariosOut[dia] = { inicio: h.inicio, fim: h.fim }
+  }
+
+  const { error } = await ctx.supabase
+    .from('barbeiros')
+    .update({
+      horarios: horariosOut,
+      bloqueios: parsed.data.bloqueios,
+      horarios_fixos: parsed.data.horarios_fixos,
+    })
+    .eq('id', id)
+
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/configuracoes')
+  return { success: true }
+}
+
+// ============================================
+// Aba WhatsApp — Evolution API
+// ============================================
+
+interface EvolutionConfig {
+  url: string
+  key: string
+}
+
+function getEvolutionConfig(): EvolutionConfig | null {
+  const url = process.env.EVOLUTION_API_URL
+  const key = process.env.EVOLUTION_API_KEY
+  if (!url || !key) return null
+  return { url: url.replace(/\/$/, ''), key }
+}
+
+export type WhatsAppStatus = 'open' | 'connecting' | 'close' | 'unknown'
+
+export async function verificarConexaoWhatsApp(
+  instanceName: string,
+): Promise<ActionResult<{ status: WhatsAppStatus }>> {
+  const cfg = getEvolutionConfig()
+  if (!cfg) {
+    return {
+      success: false,
+      error:
+        'Evolution API não configurada. Defina EVOLUTION_API_URL e EVOLUTION_API_KEY.',
+    }
+  }
+  try {
+    const res = await fetch(
+      `${cfg.url}/instance/connectionState/${encodeURIComponent(instanceName)}`,
+      {
+        headers: { apikey: cfg.key },
+        cache: 'no-store',
+      },
+    )
+    if (!res.ok) {
+      return { success: false, error: `Evolution API: ${res.status}` }
+    }
+    const json = (await res.json()) as { instance?: { state?: string }; state?: string }
+    const raw = json.instance?.state ?? json.state ?? 'unknown'
+    const status: WhatsAppStatus =
+      raw === 'open' || raw === 'close' || raw === 'connecting'
+        ? raw
+        : 'unknown'
+    return { success: true, data: { status } }
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : 'Falha ao verificar conexão.',
+    }
+  }
+}
+
+export async function reconectarWhatsApp(
+  instanceName: string,
+): Promise<ActionResult<{ qrcode?: string; status: WhatsAppStatus }>> {
+  const cfg = getEvolutionConfig()
+  if (!cfg) {
+    return {
+      success: false,
+      error:
+        'Evolution API não configurada. Defina EVOLUTION_API_URL e EVOLUTION_API_KEY.',
+    }
+  }
+  try {
+    const res = await fetch(
+      `${cfg.url}/instance/connect/${encodeURIComponent(instanceName)}`,
+      {
+        method: 'GET',
+        headers: { apikey: cfg.key },
+        cache: 'no-store',
+      },
+    )
+    if (!res.ok) {
+      return { success: false, error: `Evolution API: ${res.status}` }
+    }
+    const json = (await res.json()) as {
+      base64?: string
+      code?: string
+      pairingCode?: string
+      instance?: { state?: string }
+    }
+    const qrcode = json.base64 ?? undefined
+    const rawState = json.instance?.state ?? 'connecting'
+    const status: WhatsAppStatus =
+      rawState === 'open' || rawState === 'close' || rawState === 'connecting'
+        ? rawState
+        : 'connecting'
+    return { success: true, data: { qrcode, status } }
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : 'Falha ao reconectar.',
+    }
+  }
+}
+
+// Re-exporta tipos auxiliares
+export type ServicoInput = Servico
+
+// ============================================
+// Aba Plano — Asaas
+// ============================================
+
+interface BarbeariaPlanoRow {
+  nome: string
+  email: string | null
+  asaas_customer_id: string | null
+  asaas_subscription_id: string | null
+}
+
+export async function contarFundadores(): Promise<number> {
+  const { count } = await supabaseAdmin
+    .from('barbearias')
+    .select('id', { count: 'exact', head: true })
+    .eq('fundador', true)
+  return count ?? 0
+}
+
+export async function assinarPlano(
+  plano: 'starter' | 'pro',
+  ciclo: 'mensal' | 'anual',
+): Promise<ActionResult<{ invoiceUrl: string }>> {
+  const ctx = await getContext()
+  if (!ctx.ok) return { success: false, error: ctx.error }
+
+  const { data: barbearia } = await supabaseAdmin
+    .from('barbearias')
+    .select('nome, email, asaas_customer_id')
+    .eq('id', ctx.barbeariaId)
+    .single()
+
+  if (!barbearia) return { success: false, error: 'Barbearia não encontrada.' }
+
+  const row = barbearia as unknown as BarbeariaPlanoRow
+
+  try {
+    let customerId = row.asaas_customer_id
+    if (!customerId) {
+      const customer = await criarCliente({
+        nome: row.nome,
+        email: row.email ?? '',
+      })
+      customerId = customer.id
+    }
+
+    const precoKey =
+      `${plano}_${ciclo}` as 'starter_mensal' | 'starter_anual' | 'pro_mensal' | 'pro_anual'
+    const value = PRECOS[precoKey]
+
+    const assinatura = await criarAssinatura({
+      customerId,
+      value,
+      nextDueDate: proximaDataCobranca(),
+      description: `Barbear.IA — Plano ${plano === 'pro' ? 'Pro' : 'Starter'} ${ciclo === 'anual' ? 'Anual' : 'Mensal'}`,
+      cycle: ciclo === 'anual' ? 'YEARLY' : 'MONTHLY',
+    })
+
+    await supabaseAdmin
+      .from('barbearias')
+      .update({
+        asaas_customer_id: customerId,
+        asaas_subscription_id: assinatura.id,
+        plano,
+        plano_status: 'ativo',
+        plano_ciclo: ciclo,
+      })
+      .eq('id', ctx.barbeariaId)
+
+    revalidatePath('/configuracoes')
+    return { success: true, data: { invoiceUrl: assinatura.invoiceUrl ?? '' } }
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : 'Erro ao processar pagamento.',
+    }
+  }
+}
+
+export async function assinarComoFundador(): Promise<ActionResult<{ invoiceUrl: string }>> {
+  const ctx = await getContext()
+  if (!ctx.ok) return { success: false, error: ctx.error }
+
+  const vagas = await contarFundadores()
+  if (vagas >= FUNDADORES_TOTAL_VAGAS) {
+    return { success: false, error: 'Não há mais vagas disponíveis para Fundadores.' }
+  }
+
+  const { data: barbearia } = await supabaseAdmin
+    .from('barbearias')
+    .select('nome, email, asaas_customer_id')
+    .eq('id', ctx.barbeariaId)
+    .single()
+
+  if (!barbearia) return { success: false, error: 'Barbearia não encontrada.' }
+
+  const row = barbearia as unknown as BarbeariaPlanoRow
+
+  try {
+    let customerId = row.asaas_customer_id
+    if (!customerId) {
+      const customer = await criarCliente({
+        nome: row.nome,
+        email: row.email ?? '',
+      })
+      customerId = customer.id
+    }
+
+    const assinatura = await criarAssinatura({
+      customerId,
+      value: PRECOS.fundador,
+      nextDueDate: proximaDataCobranca(),
+      description: 'Barbear.IA — Plano Pro (Fundador Vitalício)',
+      cycle: 'MONTHLY',
+    })
+
+    await supabaseAdmin
+      .from('barbearias')
+      .update({
+        asaas_customer_id: customerId,
+        asaas_subscription_id: assinatura.id,
+        plano: 'pro',
+        plano_status: 'ativo',
+        fundador: true,
+        plano_ciclo: 'mensal',
+      })
+      .eq('id', ctx.barbeariaId)
+
+    revalidatePath('/configuracoes')
+    return { success: true, data: { invoiceUrl: assinatura.invoiceUrl ?? '' } }
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : 'Erro ao processar pagamento.',
+    }
+  }
+}
+
+export async function cancelarPlano(): Promise<ActionResult> {
+  const ctx = await getContext()
+  if (!ctx.ok) return { success: false, error: ctx.error }
+
+  const { data: barbearia } = await supabaseAdmin
+    .from('barbearias')
+    .select('asaas_subscription_id')
+    .eq('id', ctx.barbeariaId)
+    .single()
+
+  if (barbearia) {
+    const subscriptionId = (barbearia as unknown as { asaas_subscription_id: string | null })
+      .asaas_subscription_id
+    if (subscriptionId) {
+      try {
+        await cancelarAssinatura(subscriptionId)
+      } catch {
+        // Webhook irá sincronizar o status
+      }
+    }
+  }
+
+  await supabaseAdmin
+    .from('barbearias')
+    .update({ plano_status: 'cancelado', asaas_subscription_id: null })
+    .eq('id', ctx.barbeariaId)
+
+  revalidatePath('/configuracoes')
+  return { success: true }
+}
+
+export async function buscarFaturaEmAberto(): Promise<ActionResult<{ invoiceUrl: string }>> {
+  const ctx = await getContext()
+  if (!ctx.ok) return { success: false, error: ctx.error }
+
+  const { data: barbearia } = await supabaseAdmin
+    .from('barbearias')
+    .select('asaas_subscription_id')
+    .eq('id', ctx.barbeariaId)
+    .single()
+
+  const subscriptionId = (barbearia as unknown as { asaas_subscription_id: string | null } | null)
+    ?.asaas_subscription_id
+
+  if (!subscriptionId) return { success: false, error: 'Nenhuma assinatura encontrada.' }
+
+  try {
+    const cobrancas = await listarCobrancas(subscriptionId)
+    const emAberto = cobrancas.find(
+      (c) => c.status === 'PENDING' || c.status === 'OVERDUE',
+    )
+    if (!emAberto?.invoiceUrl) return { success: false, error: 'Nenhuma fatura em aberto.' }
+    return { success: true, data: { invoiceUrl: emAberto.invoiceUrl } }
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : 'Erro ao buscar fatura.',
+    }
+  }
+}
