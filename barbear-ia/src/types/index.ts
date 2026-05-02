@@ -20,7 +20,7 @@ export type Plano = 'trial' | 'starter' | 'pro'
 export type PlanoStatus = 'ativo' | 'cancelado' | 'inadimplente'
 export type StatusAgendamento = 'agendado' | 'confirmado' | 'concluido' | 'cancelado' | 'faltou'
 export type FormaPagamento = 'pix' | 'cartao' | 'dinheiro' | 'a_definir'
-export type CriadoPor = 'ia' | 'manual'
+export type CriadoPor = 'ia' | 'manual' | 'cliente_web'
 export type RoleUsuario = 'dono' | 'barbeiro'
 
 // Tipos para os jsonb

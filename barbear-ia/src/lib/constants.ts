@@ -54,3 +54,9 @@ export const STATUS_AGENDAMENTO = {
 } as const
 
 export const DIAS_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'] as const
+
+export const CRIADO_POR = {
+  ia: { label: 'IA', icon: 'Bot' },
+  manual: { label: 'Manual', icon: 'Pencil' },
+  cliente_web: { label: 'Online', icon: 'Globe' },
+} as const

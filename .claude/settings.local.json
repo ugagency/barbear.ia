@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npm run *)",
-      "PowerShell(Get-ChildItem \"c:\\\\Users\\\\ulisses\\\\OneDrive\\\\Área de Trabalho\\\\barbear.ia\\\\barbear-ia\\\\src\\\\app\\\\\\(auth\\)\" -Force 2>&1 | Select-Object Name, Mode, @{Name='Type'; Expression={if\\($_.PSIsContainer\\){'Directory'}else{'File'}}})"
+      "PowerShell(Get-ChildItem \"c:\\\\Users\\\\ulisses\\\\OneDrive\\\\Área de Trabalho\\\\barbear.ia\\\\barbear-ia\\\\src\\\\app\\\\\\(auth\\)\" -Force 2>&1 | Select-Object Name, Mode, @{Name='Type'; Expression={if\\($_.PSIsContainer\\){'Directory'}else{'File'}}})",
+      "Bash(git push *)"
     ]
   }
 }

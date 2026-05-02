@@ -4,6 +4,7 @@ import { useTransition } from 'react'
 import {
   Bot,
   Pencil,
+  Globe,
   MoreVertical,
   CheckCircle2,
   CheckCheck,
@@ -112,6 +113,11 @@ export function AgendamentoCard({ agendamento, onEdit, onChange }: Props) {
               </p>
               {agendamento.criado_por === 'ia' ? (
                 <Bot className="size-3.5 text-brand" aria-label="Criado pela IA" />
+              ) : agendamento.criado_por === 'cliente_web' ? (
+                <Globe
+                  className="size-3.5 text-emerald-600"
+                  aria-label="Agendamento online"
+                />
               ) : (
                 <Pencil
                   className="size-3.5 text-slate-400"

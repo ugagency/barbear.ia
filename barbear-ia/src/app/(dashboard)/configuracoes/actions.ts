@@ -333,6 +333,75 @@ function getEvolutionConfig(): EvolutionConfig | null {
 
 export type WhatsAppStatus = 'open' | 'connecting' | 'close' | 'unknown'
 
+interface EvolutionInstance {
+  id?: string
+  name?: string
+  instanceName?: string
+  connectionStatus?: string
+}
+
+function normalizeStatus(raw: string | undefined): WhatsAppStatus {
+  if (raw === 'open' || raw === 'connecting' || raw === 'close') return raw
+  return 'unknown'
+}
+
+async function fetchInstance(
+  cfg: EvolutionConfig,
+  instanceName: string,
+): Promise<EvolutionInstance | null> {
+  const res = await fetch(
+    `${cfg.url}/instance/fetchInstances?instanceName=${encodeURIComponent(instanceName)}`,
+    {
+      headers: { apikey: cfg.key },
+      cache: 'no-store',
+    },
+  )
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error(`Evolution API: ${res.status}`)
+  const json = (await res.json()) as EvolutionInstance[] | EvolutionInstance
+  const list = Array.isArray(json) ? json : [json]
+  return list[0] ?? null
+}
+
+export async function criarInstanciaEvolution(
+  instanceName: string,
+): Promise<ActionResult> {
+  const cfg = getEvolutionConfig()
+  if (!cfg) {
+    return {
+      success: false,
+      error:
+        'Evolution API não configurada. Defina EVOLUTION_API_URL e EVOLUTION_API_KEY.',
+    }
+  }
+  try {
+    const res = await fetch(`${cfg.url}/instance/create`, {
+      method: 'POST',
+      headers: {
+        apikey: cfg.key,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        instanceName,
+        integration: 'WHATSAPP-BAILEYS',
+      }),
+      cache: 'no-store',
+    })
+    if (res.status === 409) return { success: true }
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      if (text.toLowerCase().includes('already')) return { success: true }
+      return { success: false, error: `Evolution API: ${res.status}` }
+    }
+    return { success: true }
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : 'Falha ao criar instância.',
+    }
+  }
+}
+
 export async function verificarConexaoWhatsApp(
   instanceName: string,
 ): Promise<ActionResult<{ status: WhatsAppStatus }>> {
@@ -345,23 +414,12 @@ export async function verificarConexaoWhatsApp(
     }
   }
   try {
-    const res = await fetch(
-      `${cfg.url}/instance/connectionState/${encodeURIComponent(instanceName)}`,
-      {
-        headers: { apikey: cfg.key },
-        cache: 'no-store',
-      },
-    )
-    if (!res.ok) {
-      return { success: false, error: `Evolution API: ${res.status}` }
+    const instance = await fetchInstance(cfg, instanceName)
+    if (!instance) return { success: true, data: { status: 'close' } }
+    return {
+      success: true,
+      data: { status: normalizeStatus(instance.connectionStatus) },
     }
-    const json = (await res.json()) as { instance?: { state?: string }; state?: string }
-    const raw = json.instance?.state ?? json.state ?? 'unknown'
-    const status: WhatsAppStatus =
-      raw === 'open' || raw === 'close' || raw === 'connecting'
-        ? raw
-        : 'unknown'
-    return { success: true, data: { status } }
   } catch (e) {
     return {
       success: false,
@@ -382,6 +440,18 @@ export async function reconectarWhatsApp(
     }
   }
   try {
+    const existing = await fetchInstance(cfg, instanceName)
+
+    if (existing && existing.connectionStatus === 'open') {
+      return { success: true, data: { status: 'open' } }
+    }
+
+    if (!existing) {
+      const created = await criarInstanciaEvolution(instanceName)
+      if (!created.success) return { success: false, error: created.error }
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+    }
+
     const res = await fetch(
       `${cfg.url}/instance/connect/${encodeURIComponent(instanceName)}`,
       {
@@ -396,16 +466,13 @@ export async function reconectarWhatsApp(
     const json = (await res.json()) as {
       base64?: string
       code?: string
-      pairingCode?: string
-      instance?: { state?: string }
+      pairingCode?: string | null
+      count?: number
     }
-    const qrcode = json.base64 ?? undefined
-    const rawState = json.instance?.state ?? 'connecting'
-    const status: WhatsAppStatus =
-      rawState === 'open' || rawState === 'close' || rawState === 'connecting'
-        ? rawState
-        : 'connecting'
-    return { success: true, data: { qrcode, status } }
+    return {
+      success: true,
+      data: { qrcode: json.base64, status: 'connecting' },
+    }
   } catch (e) {
     return {
       success: false,

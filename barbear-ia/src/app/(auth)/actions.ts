@@ -71,6 +71,39 @@ export async function signOut(): Promise<ActionResult> {
   return { success: true }
 }
 
+export async function requestPasswordReset(input: {
+  email: string
+  redirectTo: string
+}): Promise<ActionResult> {
+  const supabase = await createClient()
+  const { error } = await supabase.auth.resetPasswordForEmail(input.email, {
+    redirectTo: input.redirectTo,
+  })
+  if (error) return { success: false, error: error.message }
+  return { success: true }
+}
+
+export async function updatePassword(input: {
+  senha: string
+}): Promise<ActionResult> {
+  if (input.senha.length < 6) {
+    return { success: false, error: 'A senha precisa ter ao menos 6 caracteres.' }
+  }
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) {
+    return {
+      success: false,
+      error: 'Sessão de recuperação inválida ou expirada. Solicite um novo link.',
+    }
+  }
+  const { error } = await supabase.auth.updateUser({ password: input.senha })
+  if (error) return { success: false, error: error.message }
+  return { success: true }
+}
+
 // ============================================
 // Onboarding — criação da barbearia
 // ============================================
@@ -220,6 +253,27 @@ export async function createBarbearia(
 
   if (barbeiroError) {
     return { success: false, error: barbeiroError.message }
+  }
+
+  // Cria instância na Evolution API — não bloqueia onboarding se falhar
+  const evoUrl = process.env.EVOLUTION_API_URL
+  const evoKey = process.env.EVOLUTION_API_KEY
+  if (evoUrl && evoKey) {
+    try {
+      await fetch(`${evoUrl.replace(/\/$/, '')}/instance/create`, {
+        method: 'POST',
+        headers: {
+          apikey: evoKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          instanceName,
+          integration: 'WHATSAPP-BAILEYS',
+        }),
+      })
+    } catch {
+      // Silencioso — barbeiro conecta depois pela aba WhatsApp
+    }
   }
 
   revalidatePath('/', 'layout')

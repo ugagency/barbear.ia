@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react'
 import Image from 'next/image'
-import { Loader2, Upload } from 'lucide-react'
+import { Loader2, Upload, Link as LinkIcon, Copy, ExternalLink, Check } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -104,6 +104,8 @@ export function AbaBarbearia({ barbearia, onSaved }: Props) {
 
   return (
     <div className="space-y-5">
+      <LinkAgendamento slug={barbearia.slug} />
+
       <section className="rounded-xl border border-brand-100 bg-white p-5 sm:p-6">
         <h2 className="text-base font-semibold text-brand">Dados da barbearia</h2>
         <p className="text-xs text-slate-500 mt-0.5">
@@ -278,6 +280,76 @@ export function AbaBarbearia({ barbearia, onSaved }: Props) {
         </p>
       </section>
     </div>
+  )
+}
+
+function LinkAgendamento({ slug }: { slug: string }) {
+  const [copiado, setCopiado] = useState(false)
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL ??
+    (typeof window !== 'undefined' ? window.location.origin : '')
+  const link = `${baseUrl}/agendar/${slug}`
+
+  function copiar() {
+    if (typeof navigator === 'undefined' || !navigator.clipboard) return
+    navigator.clipboard.writeText(link).then(() => {
+      setCopiado(true)
+      toast.success('Link copiado!')
+      setTimeout(() => setCopiado(false), 2000)
+    })
+  }
+
+  return (
+    <section className="rounded-xl border border-brand-100 bg-gradient-to-br from-brand-50/60 to-white p-5 sm:p-6">
+      <div className="flex items-start gap-3">
+        <div className="size-10 rounded-lg bg-brand text-white flex items-center justify-center shrink-0">
+          <LinkIcon className="size-5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-base font-semibold text-brand">
+            Seu link de agendamento
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Compartilhe com seus clientes no WhatsApp, Instagram ou bio.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-col sm:flex-row gap-2">
+        <div className="flex-1 min-w-0 rounded-lg border border-brand-100 bg-white px-3 py-2 text-xs sm:text-sm font-mono text-slate-700 truncate">
+          {link}
+        </div>
+        <div className="flex gap-2 shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={copiar}
+            className="flex-1 sm:flex-none"
+          >
+            {copiado ? (
+              <>
+                <Check className="size-3.5" /> Copiado
+              </>
+            ) : (
+              <>
+                <Copy className="size-3.5" /> Copiar
+              </>
+            )}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="bg-brand hover:bg-brand-light text-white flex-1 sm:flex-none"
+            render={
+              <a href={link} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="size-3.5" /> Abrir
+              </a>
+            }
+          />
+        </div>
+      </div>
+    </section>
   )
 }
 
