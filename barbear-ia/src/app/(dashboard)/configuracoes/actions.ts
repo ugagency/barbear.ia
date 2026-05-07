@@ -12,6 +12,7 @@ import {
   listarCobrancas,
   proximaDataCobranca,
 } from '@/lib/asaas'
+import { configurarWebhookESettings } from '@/lib/evolution'
 import { PRECOS, FUNDADORES_TOTAL_VAGAS } from '@/lib/constants'
 import type { Bloqueio, HorarioFixo, Servico } from '@/types'
 
@@ -387,12 +388,22 @@ export async function criarInstanciaEvolution(
       }),
       cache: 'no-store',
     })
-    if (res.status === 409) return { success: true }
-    if (!res.ok) {
-      const text = await res.text().catch(() => '')
-      if (text.toLowerCase().includes('already')) return { success: true }
+
+    const alreadyExists =
+      res.status === 409 ||
+      (!res.ok &&
+        (await res
+          .clone()
+          .text()
+          .then((t) => t.toLowerCase().includes('already'))
+          .catch(() => false)))
+
+    if (!res.ok && !alreadyExists) {
       return { success: false, error: `Evolution API: ${res.status}` }
     }
+
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+    await configurarWebhookESettings(instanceName)
     return { success: true }
   } catch (e) {
     return {

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { configurarWebhookESettings } from '@/lib/evolution'
 import type { ConfigBarbearia, HorarioDia, Servico } from '@/types'
 
 type ActionResult<T = undefined> =
@@ -255,12 +256,12 @@ export async function createBarbearia(
     return { success: false, error: barbeiroError.message }
   }
 
-  // Cria instância na Evolution API — não bloqueia onboarding se falhar
-  const evoUrl = process.env.EVOLUTION_API_URL
+  // Configurar Evolution API — não bloqueia onboarding se falhar
+  const evoUrl = process.env.EVOLUTION_API_URL?.replace(/\/$/, '')
   const evoKey = process.env.EVOLUTION_API_KEY
   if (evoUrl && evoKey) {
     try {
-      await fetch(`${evoUrl.replace(/\/$/, '')}/instance/create`, {
+      const createRes = await fetch(`${evoUrl}/instance/create`, {
         method: 'POST',
         headers: {
           apikey: evoKey,
@@ -271,8 +272,18 @@ export async function createBarbearia(
           integration: 'WHATSAPP-BAILEYS',
         }),
       })
-    } catch {
-      // Silencioso — barbeiro conecta depois pela aba WhatsApp
+
+      if (!createRes.ok && createRes.status !== 409) {
+        const text = await createRes.text().catch(() => '')
+        if (!text.toLowerCase().includes('already')) {
+          console.error('[Evolution] Erro ao criar instância:', text)
+        }
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+      await configurarWebhookESettings(instanceName)
+    } catch (err) {
+      console.error('[Evolution] Erro na configuração automática:', err)
     }
   }
 
