@@ -25,7 +25,6 @@ import type { Barbearia, Barbeiro } from '@/types'
 interface Props {
   barbearia: Barbearia
   barbeiros: Barbeiro[]
-  fundadoresUsados: number
 }
 
 const TAB_VALUES = ['barbearia', 'barbeiros', 'horarios', 'whatsapp', 'plano'] as const
@@ -39,7 +38,7 @@ const TAB_LABELS: Record<TabValue, string> = {
   plano: 'Plano',
 }
 
-export function ConfiguracoesClient({ barbearia, barbeiros, fundadoresUsados }: Props) {
+export function ConfiguracoesClient({ barbearia, barbeiros }: Props) {
   const router = useRouter()
   const [tab, setTab] = useState<TabValue>('barbearia')
 
@@ -52,9 +51,6 @@ export function ConfiguracoesClient({ barbearia, barbeiros, fundadoresUsados }: 
     plano: (raw.plano as string) ?? 'trial',
     plano_status: (raw.plano_status as string) ?? 'ativo',
     trial_ends_at: (raw.trial_ends_at as string | null) ?? null,
-    proxima_cobranca: (raw.proxima_cobranca as string | null) ?? null,
-    fundador: (raw.fundador as boolean) ?? false,
-    plano_ciclo: ((raw.plano_ciclo as 'mensal' | 'anual') ?? 'mensal') as 'mensal' | 'anual',
   }
 
   return (
@@ -115,7 +111,7 @@ export function ConfiguracoesClient({ barbearia, barbeiros, fundadoresUsados }: 
           <AbaWhatsapp instanceName={barbearia.instance_name} />
         </TabsContent>
         <TabsContent value="plano">
-          <AbaPlano barbearia={barbeariaPlano} fundadoresUsados={fundadoresUsados} />
+          <AbaPlano barbearia={barbeariaPlano} />
         </TabsContent>
       </Tabs>
     </div>
