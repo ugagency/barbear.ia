@@ -21,7 +21,6 @@ import {
   AccordionPanel,
 } from '@/components/ui/accordion'
 import { WhatsappMockup } from '@/components/marketing/whatsapp-mockup'
-import { PricingCard } from '@/components/marketing/pricing-card'
 
 export default function LandingPage() {
   return (
@@ -206,77 +205,6 @@ export default function LandingPage() {
       </section>
 
       {/* ============================================
-          PRICING
-          ============================================ */}
-      <section id="precos" className="py-20 sm:py-28">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6">
-          <div className="text-center max-w-2xl mx-auto">
-            <span className="text-xs font-semibold uppercase tracking-wider text-brand">
-              Planos
-            </span>
-            <h2 className="mt-3 text-3xl sm:text-4xl font-bold text-brand">
-              Investimento que se paga
-              <br />
-              <span className="text-slate-700">já no primeiro mês.</span>
-            </h2>
-            <p className="mt-3 text-slate-600">
-              Sem fidelidade. Sem cartão para o trial. Cancele quando quiser.
-            </p>
-          </div>
-
-          <div className="mt-14 grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
-            <PricingCard
-              nome="Starter"
-              preco={49}
-              descricao="Para quem começa a automatizar."
-              features={[
-                { label: 'Atendimento automático 24h', incluido: true },
-                { label: 'Agendamento via WhatsApp', incluido: true },
-                { label: 'Lembretes automáticos', incluido: true },
-                { label: 'Até 2 barbeiros', incluido: true },
-                { label: 'Recuperação de inativos', incluido: false },
-                { label: 'Métricas avançadas', incluido: false },
-              ]}
-              ctaLabel="Começar grátis"
-              ctaHref="/cadastro"
-            />
-            <PricingCard
-              nome="Pro"
-              preco={97}
-              descricao="Para quem quer crescer no automático."
-              destaque
-              badge="Mais popular"
-              features={[
-                { label: 'Tudo do Starter', incluido: true },
-                { label: 'Até 5 barbeiros', incluido: true },
-                { label: 'Recuperação de clientes inativos', incluido: true },
-                { label: 'Métricas e relatórios completos', incluido: true },
-                { label: 'Suporte prioritário', incluido: true },
-              ]}
-              ctaLabel="Testar 7 dias grátis"
-              ctaHref="/cadastro"
-            />
-          </div>
-
-          <div className="mt-6 max-w-3xl mx-auto rounded-xl bg-yellow-50 border border-yellow-200 p-4 text-center">
-            <p className="text-sm font-semibold text-yellow-800">
-              🔥 Oferta de Fundadores — Pro por R$49/mês para sempre
-            </p>
-            <p className="text-xs text-yellow-700 mt-1">
-              Apenas para os primeiros 50 clientes. Sem aumento de preço nunca.{' '}
-              <Link href="/pricing" className="underline font-medium">
-                Ver vagas disponíveis →
-              </Link>
-            </p>
-          </div>
-
-          <p className="mt-4 text-center text-xs text-slate-500">
-            Pix, cartão ou boleto · Cancele a qualquer momento
-          </p>
-        </div>
-      </section>
-
-      {/* ============================================
           FAQ
           ============================================ */}
       <section id="faq" className="bg-brand-50/40 py-20 sm:py-24 border-y border-brand-100">
@@ -324,8 +252,8 @@ export default function LandingPage() {
               <AccordionItem value="cancelar">
                 <AccordionTrigger>E se eu quiser cancelar?</AccordionTrigger>
                 <AccordionPanel>
-                  Cancele quando quiser direto no painel. Sem multa, sem
-                  perguntas. Você mantém acesso até o fim do período pago.
+                  Basta falar com a nossa equipe. Sem multa e sem burocracia:
+                  combinamos o encerramento com você.
                 </AccordionPanel>
               </AccordionItem>
               <AccordionItem value="erro">
@@ -358,7 +286,7 @@ export default function LandingPage() {
             <br /> trabalhar por você.
           </h2>
           <p className="mt-4 text-white/70 max-w-md mx-auto">
-            7 dias grátis. Sem cartão de crédito. Cancele quando quiser.
+            Teste por 7 dias, sem compromisso, com a nossa equipe ao seu lado.
           </p>
           <div className="mt-8">
             <Button

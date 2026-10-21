@@ -71,7 +71,7 @@ export default function CadastroPage() {
       <div className="space-y-1 text-center">
         <h1 className="text-2xl font-bold text-brand">Criar conta</h1>
         <p className="text-sm text-slate-500">
-          Comece grátis com 7 dias de Trial.
+          Crie sua conta e comece o período de teste.
         </p>
       </div>
 

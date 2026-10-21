@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ConfiguracoesClient } from './configuracoes-client'
-import { contarFundadores } from './actions'
 import type { Barbearia, Barbeiro } from '@/types'
 
 export default async function ConfiguracoesPage() {
@@ -19,14 +18,13 @@ export default async function ConfiguracoesPage() {
   if (!vinculo) redirect('/onboarding')
   const barbeariaId = vinculo.barbearia_id as string
 
-  const [barbeariaRes, barbeirosRes, fundadoresUsados] = await Promise.all([
+  const [barbeariaRes, barbeirosRes] = await Promise.all([
     supabase.from('barbearias').select('*').eq('id', barbeariaId).single(),
     supabase
       .from('barbeiros')
       .select('*')
       .eq('barbearia_id', barbeariaId)
       .order('created_at', { ascending: true }),
-    contarFundadores(),
   ])
 
   if (!barbeariaRes.data) redirect('/onboarding')
@@ -35,7 +33,6 @@ export default async function ConfiguracoesPage() {
     <ConfiguracoesClient
       barbearia={barbeariaRes.data as Barbearia}
       barbeiros={(barbeirosRes.data ?? []) as Barbeiro[]}
-      fundadoresUsados={fundadoresUsados}
     />
   )
 }
