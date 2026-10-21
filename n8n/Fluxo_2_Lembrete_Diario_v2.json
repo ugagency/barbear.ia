@@ -1,0 +1,380 @@
+{
+  "name": "Barbear.IA — Fluxo 2 — Lembrete Diário v2",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        176,
+        -112
+      ],
+      "id": "fac4e1cb-b590-49ac-8696-cd619c2a4775",
+      "name": "Schedule 07h"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Janela do dia em America/Sao_Paulo (UTC-3, sem horário de verão)\nconst ymd = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });\nconst hojeInicio = new Date(ymd + 'T00:00:00-03:00');\nconst amanhaInicio = new Date(hojeInicio.getTime() + 24 * 60 * 60 * 1000);\nreturn [{ json: { hoje_inicio: hojeInicio.toISOString(), amanha_inicio: amanhaInicio.toISOString() } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        384,
+        -112
+      ],
+      "id": "73989b69-8ab2-4c86-a804-c9d03ab84321",
+      "name": "Calcular datas"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/agendamentos",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "=in.(agendado,confirmado)"
+            },
+            {
+              "name": "inicio_at",
+              "value": "=gte.{{ $json.hoje_inicio }}"
+            },
+            {
+              "name": "inicio_at",
+              "value": "=lt.{{ $json.amanha_inicio }}"
+            },
+            {
+              "name": "select",
+              "value": "id,inicio_at,servico,barbearia_id,clientes(nome,telefone),barbearias(instance_name,nome),barbeiros(nome)"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        576,
+        -112
+      ],
+      "id": "c9322508-c941-409e-a841-93f14c884a51",
+      "name": "Buscar agendamentos de hoje"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/lembretes_log",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "tipo",
+              "value": "=eq.lembrete"
+            },
+            {
+              "name": "status",
+              "value": "=eq.enviado"
+            },
+            {
+              "name": "enviado_at",
+              "value": "=gte.{{ $('Calcular datas').first().json.hoje_inicio }}"
+            },
+            {
+              "name": "select",
+              "value": "agendamento_id"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        784,
+        -112
+      ],
+      "id": "5398e6e3-44a8-4cc5-87bc-d49ef80f743c",
+      "name": "Buscar já lembrados hoje"
+    },
+    {
+      "parameters": {
+        "jsCode": "const agendamentos = $('Buscar agendamentos de hoje').all().map(i => i.json);\nconst jaLembrados = $('Buscar já lembrados hoje').all().map(i => i.json.agendamento_id);\n\nconst pendentes = agendamentos.filter(a => !jaLembrados.includes(a.id));\n\nif (pendentes.length === 0) return [];\n\nreturn pendentes.map(a => ({ json: a }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        976,
+        -112
+      ],
+      "id": "37e24b5e-3563-40dc-9a47-73026df06bd3",
+      "name": "Filtrar pendentes"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1184,
+        -112
+      ],
+      "id": "e9b9280d-dd7b-4e05-b094-1e351006af35",
+      "name": "Loop agendamentos"
+    },
+    {
+      "parameters": {
+        "jsCode": "const a = $json;\nconst hora = new Date(a.inicio_at).toLocaleTimeString('pt-BR', {\n  hour: '2-digit',\n  minute: '2-digit',\n  timeZone: 'America/Sao_Paulo'\n});\nconst nome = a.clientes?.nome || 'Cliente';\nconst barbearia = a.barbearias?.nome || 'nossa barbearia';\nconst barbeiro = a.barbeiros?.nome || '';\nconst servico = a.servico || '';\n\nconst mensagem = `Bom dia, ${nome}! ☀️💈\\nPassando pra lembrar do seu horário hoje:\\n\\n⏰ ${hora}${barbeiro ? ` com ${barbeiro}` : ''}\\n✂️ ${servico}\\n\\nQualquer coisa é só chamar! 👍`;\n\nreturn [{ json: { ...a, mensagem_lembrete: mensagem } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1376,
+        -112
+      ],
+      "id": "2992545d-0338-4de7-a985-b219b37a2ed1",
+      "name": "Montar mensagem"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendText/{{ $json.barbearias.instance_name }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $json.clientes.telefone, text: $json.mensagem_lembrete }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1584,
+        -112
+      ],
+      "id": "27811572-1af4-4445-a614-1469710fd79f",
+      "name": "Enviar lembrete",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const enviou = !$json.error;\nconst agendamento = $('Montar mensagem').first().json;\nreturn [{\n  json: {\n    barbearia_id: agendamento.barbearia_id,\n    agendamento_id: agendamento.id,\n    tipo: 'lembrete',\n    status: enviou ? 'enviado' : 'falhou',\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1776,
+        -112
+      ],
+      "id": "9934695d-bd28-48f6-bded-55e62421f4be",
+      "name": "Verificar envio"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/lembretes_log",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1984,
+        -112
+      ],
+      "id": "19a686a1-71fd-4f9d-a437-770d7333f218",
+      "name": "Registrar no log"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule 07h": {
+      "main": [
+        [
+          {
+            "node": "Calcular datas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calcular datas": {
+      "main": [
+        [
+          {
+            "node": "Buscar agendamentos de hoje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar agendamentos de hoje": {
+      "main": [
+        [
+          {
+            "node": "Buscar já lembrados hoje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar já lembrados hoje": {
+      "main": [
+        [
+          {
+            "node": "Filtrar pendentes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrar pendentes": {
+      "main": [
+        [
+          {
+            "node": "Loop agendamentos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop agendamentos": {
+      "main": [
+        [
+          {
+            "node": "Montar mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar mensagem": {
+      "main": [
+        [
+          {
+            "node": "Enviar lembrete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar lembrete": {
+      "main": [
+        [
+          {
+            "node": "Verificar envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar envio": {
+      "main": [
+        [
+          {
+            "node": "Registrar no log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar no log": {
+      "main": [
+        [
+          {
+            "node": "Loop agendamentos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "d9c9e919-64b5-4627-b181-4148ec0f5d5c",
+  "meta": {
+    "instanceId": "807138b7646fc3b35fe8d414d5cd61eb6889d95886d54e7341e1a712e0242dc1"
+  },
+  "id": "UxfKLKNhtsEstzJe",
+  "tags": []
+}

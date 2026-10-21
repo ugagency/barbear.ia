@@ -1,0 +1,398 @@
+{
+  "name": "Barbear.IA — Fluxo 3 — Reativação de Inativos v2",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 10 * * 1"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "2331b0a8-665b-4d2b-bcca-22311b22da70",
+      "name": "Schedule Segunda 10h"
+    },
+    {
+      "parameters": {
+        "jsCode": "const agora = new Date();\nconst quarentaCincoDiasAtras = new Date(agora);\nquarentaCincoDiasAtras.setDate(quarentaCincoDiasAtras.getDate() - 45);\nconst seteDiasAtras = new Date(agora);\nseteDiasAtras.setDate(seteDiasAtras.getDate() - 7);\nreturn [{\n  json: {\n    quarenta_cinco_dias_atras: quarentaCincoDiasAtras.toISOString(),\n    sete_dias_atras: seteDiasAtras.toISOString(),\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "85861c3b-98c6-4875-80f1-f764808f860f",
+      "name": "Calcular datas"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/clientes",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ativo",
+              "value": "=eq.true"
+            },
+            {
+              "name": "ultimo_atendimento",
+              "value": "=lt.{{ $json.quarenta_cinco_dias_atras }}"
+            },
+            {
+              "name": "select",
+              "value": "id,nome,telefone,barbearia_id,ultimo_atendimento,barbearias!inner(instance_name,nome,plano,plano_status)"
+            },
+            {
+              "name": "barbearias.plano",
+              "value": "=eq.pro"
+            },
+            {
+              "name": "barbearias.plano_status",
+              "value": "=eq.ativo"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        400,
+        0
+      ],
+      "id": "a3e18316-f76c-4be3-ae15-5fa595ca71f2",
+      "name": "Buscar clientes inativos"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/lembretes_log",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "tipo",
+              "value": "=eq.reativacao"
+            },
+            {
+              "name": "enviado_at",
+              "value": "=gte.{{ $('Calcular datas').first().json.sete_dias_atras }}"
+            },
+            {
+              "name": "select",
+              "value": "cliente_id"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        608,
+        0
+      ],
+      "id": "669ed7b3-6d6b-42df-8b61-080e93c3f4bb",
+      "name": "Buscar já contatados"
+    },
+    {
+      "parameters": {
+        "jsCode": "const clientes = $('Buscar clientes inativos').all().map(i => i.json);\nconst jaContatados = $('Buscar já contatados').all().map(i => i.json.cliente_id).filter(Boolean);\n\nconst pendentes = clientes.filter(c => !jaContatados.includes(c.id));\n\nif (pendentes.length === 0) return [];\n\nreturn pendentes.map(c => ({ json: c }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        0
+      ],
+      "id": "7dbaaf6e-58f6-4e54-8026-ded48fc4159a",
+      "name": "Filtrar não contatados"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1008,
+        0
+      ],
+      "id": "f0616298-41d4-42ca-9a89-618a0303111f",
+      "name": "Loop clientes"
+    },
+    {
+      "parameters": {
+        "jsCode": "const c = $json;\nconst nome = c.nome || 'Pessoal';\nconst barbearia = c.barbearias?.nome || 'nossa barbearia';\n\nconst mensagem = `Oi ${nome}! 👋💈\\nFaz um tempo que você não aparece na ${barbearia}.\\nTá precisando de um corte? Posso marcar rapidinho pra você! 😊\\n\\nÉ só me dizer o dia e horário que prefere. ✂️`;\n\nreturn [{ json: { ...c, mensagem_reativacao: mensagem } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ],
+      "id": "2168cd8c-0930-4865-9eb4-febddf1afca7",
+      "name": "Montar mensagem"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendText/{{ $json.barbearias.instance_name }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $json.telefone, text: $json.mensagem_reativacao }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1408,
+        0
+      ],
+      "id": "e2a8d555-0808-41a0-be37-4f873bcfea23",
+      "name": "Enviar reativação",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const enviou = !$json.error;\nconst cliente = $('Montar mensagem').first().json;\nreturn [{\n  json: {\n    barbearia_id: cliente.barbearia_id,\n    cliente_id: cliente.id,\n    tipo: 'reativacao',\n    status: enviou ? 'enviado' : 'falhou',\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        0
+      ],
+      "id": "c2b38515-9cee-4762-a3e3-2acde72d978d",
+      "name": "Verificar envio"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/lembretes_log",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1808,
+        0
+      ],
+      "id": "04102029-4558-4fb2-a691-1f71cad3e22c",
+      "name": "Registrar no log"
+    },
+    {
+      "parameters": {
+        "jsCode": "const cliente = $('Montar mensagem').first().json;\n\n// Conta só as reativações enviadas DEPOIS do último atendimento (consecutivas sem retorno)\nconst response = await $helpers.httpRequest({\n  method: 'GET',\n  url: `${process.env.SUPABASE_URL}/rest/v1/lembretes_log?cliente_id=eq.${cliente.id}&tipo=eq.reativacao&status=eq.enviado&enviado_at=gte.${encodeURIComponent(cliente.ultimo_atendimento)}&select=id`,\n  headers: {\n    'apikey': process.env.SUPABASE_SERVICE_KEY,\n    'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_KEY}`,\n  },\n});\n\nconst totalReativacoes = Array.isArray(response) ? response.length : 0;\n\nif (totalReativacoes >= 3) {\n  // Marcar como inativo definitivamente\n  await $helpers.httpRequest({\n    method: 'PATCH',\n    url: `${process.env.SUPABASE_URL}/rest/v1/clientes?id=eq.${cliente.id}`,\n    headers: {\n      'apikey': process.env.SUPABASE_SERVICE_KEY,\n      'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_KEY}`,\n      'Content-Type': 'application/json',\n    },\n    body: JSON.stringify({ ativo: false }),\n  });\n}\n\nreturn [{ json: { cliente_id: cliente.id, total_reativacoes: totalReativacoes, desativado: totalReativacoes >= 3 } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        0
+      ],
+      "id": "14be10e8-2e00-4f38-81a4-9f2b7a5ad6d2",
+      "name": "Verificar e desativar (3+ sem resposta)"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Segunda 10h": {
+      "main": [
+        [
+          {
+            "node": "Calcular datas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calcular datas": {
+      "main": [
+        [
+          {
+            "node": "Buscar clientes inativos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar clientes inativos": {
+      "main": [
+        [
+          {
+            "node": "Buscar já contatados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar já contatados": {
+      "main": [
+        [
+          {
+            "node": "Filtrar não contatados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrar não contatados": {
+      "main": [
+        [
+          {
+            "node": "Loop clientes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop clientes": {
+      "main": [
+        [
+          {
+            "node": "Montar mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar mensagem": {
+      "main": [
+        [
+          {
+            "node": "Enviar reativação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar reativação": {
+      "main": [
+        [
+          {
+            "node": "Verificar envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar envio": {
+      "main": [
+        [
+          {
+            "node": "Registrar no log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar no log": {
+      "main": [
+        [
+          {
+            "node": "Verificar e desativar (3+ sem resposta)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar e desativar (3+ sem resposta)": {
+      "main": [
+        [
+          {
+            "node": "Loop clientes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "c6e22f1f-9736-482b-b922-d2fa5206a529",
+  "meta": {
+    "instanceId": "807138b7646fc3b35fe8d414d5cd61eb6889d95886d54e7341e1a712e0242dc1"
+  },
+  "id": "B7gKswYJWCvJBPNo",
+  "tags": []
+}

@@ -1,0 +1,2963 @@
+{
+  "name": "Barbear.IA — Fluxo Principal v4.3",
+  "nodes": [
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Rotear').first().json.tipoMensagem }}",
+                    "rightValue": "conversation",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "barb-txt"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "texto"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "barb-aud",
+                    "leftValue": "={{ $('Rotear').first().json.tipoMensagem }}",
+                    "rightValue": "audioMessage",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "audio"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        3200,
+        -3840
+      ],
+      "id": "921a6806-4b2b-4952-a49a-124f5a514372",
+      "name": "Switch barbeiro"
+    },
+    {
+      "parameters": {
+        "resource": "chat-api",
+        "operation": "get-media-base64",
+        "instanceName": "={{ $('Rotear').first().json.instancia }}",
+        "messageId": "={{ $('Rotear').first().json.id }}"
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        3440,
+        -3984
+      ],
+      "id": "4d939967-8ddd-4c65-b849-1bf5acc8951c",
+      "name": "Obter audio barbeiro",
+      "credentials": {
+        "evolutionApi": {
+          "id": "NU0fVHIKa1ieWpTy",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "data.base64",
+        "options": {
+          "fileName": "audio.ogg",
+          "mimeType": "audio/ogg"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        3680,
+        -3984
+      ],
+      "id": "fd0e9424-dace-418a-bbb8-c0faf0f07fa5",
+      "name": "Converter audio barbeiro"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list"
+        },
+        "inputType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        3920,
+        -3984
+      ],
+      "id": "534a9149-a90e-4674-9d28-788429e0c9d0",
+      "name": "Transcrever audio barbeiro",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "Tf06ftYu7cj0QewA",
+          "name": "try2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const t = $json.content?.parts?.[0]?.text || $json.text || '';\nreturn [{ json: { ...$('Rotear').first().json, mensagem: t } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4160,
+        -3984
+      ],
+      "id": "b3353607-0c3d-452e-b707-fc38badde8f6",
+      "name": "Merge audio barbeiro"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rotear = $('Rotear').first().json;\nconst conv = $('buscar historico barbeiro1').first().json;\nconst msg = $json.mensagem || rotear.mensagem;\n\nlet historico = [];\nif (conv?.mensagens) {\n  historico = Array.isArray(conv.mensagens) ? conv.mensagens.slice(-20) : JSON.parse(conv.mensagens).slice(-20);\n}\n\nreturn [{ json: { ...rotear, historico, mensagem: msg } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4640,
+        -3840
+      ],
+      "id": "44654940-7833-497c-a5c4-1ea10e427203",
+      "name": "montar contexto barbeiro"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.mensagem }}",
+        "options": {
+          "systemMessage": "=Você é o BarberOps, assistente interno da {{ $json.barbearia_nome }}.\nAjuda {{ $json.barbeiro_atual.nome }} a gerenciar sua agenda pelo WhatsApp.\nNUNCA diga que é IA ou robô. Tom direto, profissional. Emojis moderados (💈✂️📅✅❌).\nRespostas curtas. Se não entender: \"Pode repetir? Não entendi 😅\"\n\nDATA ATUAL: {{ $now.setZone('America/Sao_Paulo').toFormat('dd/MM/yyyy') }}\nHORA ATUAL: {{ $now.setZone('America/Sao_Paulo').toFormat('HH:mm') }}\nDIA DA SEMANA: {{ $now.setZone('America/Sao_Paulo').toFormat('cccc') }}\nAMANHÃ: {{ $now.setZone('America/Sao_Paulo').plus({days:1}).toFormat('dd/MM/yyyy') }} ({{ $now.setZone('America/Sao_Paulo').plus({days:1}).toFormat('cccc') }})\n\nBARBEIRO: {{ $json.barbeiro_atual.nome }} | ID: {{ $json.barbeiro_atual.id }}\nBARBEARIA_ID: {{ $json.barbearia_id }}\nÉ DONO: {{ $json.isDono }}\n\nSERVIÇOS:\n{{ $json.barbeiros.map(b=>(b.servicos||[]).map(s=>`- ${s.nome}: R$${s.preco} (${s.duracao_min}min)`).join('\\n')).join('\\n') }}\n\nPERMISSÕES:\n- Barbeiro: vê só sua própria agenda e faturamento\n- Dono: vê tudo\n- Se pedirem dados de outro sem ser dono: \"Acesso exclusivo do dono 💈\"\n\nTOOLS:\n1. consultar_agenda_hoje\n   → \"o que tenho hoje?\", \"próximo cliente\", \"tem vaga hoje?\"\n\n2. consultar_agenda_data\n   → \"agenda de amanhã\", \"o que tenho sexta?\", data específica\n   → data_inicio: YYYY-MM-DDT00:00:00-03:00 do dia desejado\n   → data_fim: YYYY-MM-DDT23:59:59-03:00 do dia desejado\n   → Calcule usando DATA ATUAL acima. Ex: amanhã = {{ $now.setZone('America/Sao_Paulo').plus({days:1}).toFormat('yyyy-MM-dd') }}\n\n3. buscar_cliente → pegar cliente_id por nome\n4. criar_cliente → quando cliente não existe\n5. criar_agendamento → confirme antes: \"Confirmo: [Nome] — [Serviço] — [dia] às [hora]?\"\n6. cancelar_agendamento → consulte agenda para pegar ID, confirme antes\n7. reagendar_agendamento → consulte agenda para pegar ID, confirme antes\n8. concluir_atendimento → \"terminei\", \"atendi\"\n9. marcar_noshow → \"não apareceu\", \"faltou\"\n10. bloquear_horario → \"vou almoçar\", \"folga\", \"bloqueia\"\n11. consultar_faturamento → \"quanto fiz?\", \"faturamento\"\n\nREGRAS:\n- Fuso: America/Sao_Paulo (-03:00)\n- Formato datas: YYYY-MM-DDTHH:MM:SS-03:00\n- fim_at = inicio_at + duracao_min\n- Sempre confirme criar/cancelar/reagendar antes de executar\n\nHISTÓRICO: {{ JSON.stringify($json.historico) }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        4880,
+        -3840
+      ],
+      "id": "181db371-512b-40f3-8440-4cfa72f53e5b",
+      "name": "AI Agent barbeiro"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=barb_{{ $('Rotear').first().json.barbeiro_atual.id }}",
+        "contextWindowLength": 20
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        4880,
+        -3664
+      ],
+      "id": "dba980ae-cac9-4d9f-b24c-572baadb425f",
+      "name": "Memory barbeiro"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Rotear').first().json.tipoMensagem }}",
+                    "rightValue": "conversation",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "cli-txt"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "texto"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "cli-aud",
+                    "leftValue": "={{ $('Rotear').first().json.tipoMensagem }}",
+                    "rightValue": "audioMessage",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "audio"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        3200,
+        -2592
+      ],
+      "id": "d3bdc44b-1cc0-4f8a-b8e6-9b573b706b82",
+      "name": "Switch cliente"
+    },
+    {
+      "parameters": {
+        "resource": "chat-api",
+        "operation": "get-media-base64",
+        "instanceName": "={{ $('Rotear').first().json.instancia }}",
+        "messageId": "={{ $('Rotear').first().json.id }}"
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        3440,
+        -2448
+      ],
+      "id": "72335a1b-8eaf-44d6-9490-2774cfbad5cf",
+      "name": "Obter audio cliente",
+      "credentials": {
+        "evolutionApi": {
+          "id": "NU0fVHIKa1ieWpTy",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "data.base64",
+        "options": {
+          "fileName": "audio.ogg",
+          "mimeType": "audio/ogg"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        3680,
+        -2448
+      ],
+      "id": "4dc6ec79-9e8f-48bf-93bc-da50470b0504",
+      "name": "Converter audio cliente"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list"
+        },
+        "inputType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        3920,
+        -2448
+      ],
+      "id": "64953b19-52a6-4ffa-b8de-33d66ce3099e",
+      "name": "Transcrever audio cliente",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "Tf06ftYu7cj0QewA",
+          "name": "try2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const t = $json.content?.parts?.[0]?.text || $json.text || '';\nreturn [{ json: { ...$('Rotear').first().json, mensagem: t } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4160,
+        -2448
+      ],
+      "id": "ad32e717-9910-4b80-8904-f58fc7580194",
+      "name": "Merge audio cliente"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rotear = $('Rotear').first().json;\nconst msg = $json.mensagem || rotear.mensagem;\n\nlet cliente = null;\n\n// Tenta cliente existente (veio pelo caminho true)\nconst existente = $input.first().json;\nif (existente?.id) {\n  cliente = existente;\n}\n\n// Se não, tenta o criado (veio pelo caminho false → criar cliente)\nif (!cliente) {\n  try {\n    const criado = $('criar cliente').first().json;\n    const c = Array.isArray(criado) ? criado[0] : criado;\n    if (c?.id) cliente = c;\n  } catch(e) {}\n}\n\nreturn [{ json: { ...rotear, cliente_id: cliente?.id || null, cliente, mensagem: msg } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5120,
+        -2592
+      ],
+      "id": "2b9c05e4-ece3-441f-96c3-6457967ff011",
+      "name": "merge cliente"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        5632,
+        -2272
+      ],
+      "id": "3e434660-4b4f-4f53-a8eb-be97e4e09598",
+      "name": "GPT-4o-mini cliente",
+      "credentials": {
+        "openAiApi": {
+          "id": "vmSHfKSB9rqybWsY",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=cli_{{ $('merge cliente').first().json.cliente_id }}",
+        "contextWindowLength": 20
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        5840,
+        -2384
+      ],
+      "id": "f188527b-7c8c-465d-b091-2e6b9e8fce2c",
+      "name": "Memory cliente"
+    },
+    {
+      "parameters": {
+        "useCustomSchema": true,
+        "tableId": "agendamentos",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "barbearia_id",
+              "fieldValue": "={{ $('merge cliente').first().json.barbearia_id }}"
+            },
+            {
+              "fieldId": "barbeiro_id",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('barbeiro_id', 'ID do barbeiro escolhido pelo cliente', 'string') }}"
+            },
+            {
+              "fieldId": "cliente_id",
+              "fieldValue": "={{ $('merge cliente').first().json.cliente_id }}"
+            },
+            {
+              "fieldId": "servico",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('servico', 'Nome do serviço', 'string') }}"
+            },
+            {
+              "fieldId": "valor",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('valor', 'Valor em reais', 'number') }}"
+            },
+            {
+              "fieldId": "duracao_min",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('duracao_min', 'Duração em minutos', 'number') }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "agendado"
+            },
+            {
+              "fieldId": "inicio_at",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('inicio_at', 'Início YYYY-MM-DDTHH:MM:SS-03:00', 'string') }}"
+            },
+            {
+              "fieldId": "fim_at",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('fim_at', 'Fim YYYY-MM-DDTHH:MM:SS-03:00', 'string') }}"
+            },
+            {
+              "fieldId": "forma_pagamento",
+              "fieldValue": "a_definir"
+            },
+            {
+              "fieldId": "criado_por",
+              "fieldValue": "ia"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        5968,
+        -2384
+      ],
+      "id": "7d48c690-402b-4a7b-a875-0eecb269efb1",
+      "name": "agendar_horario",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "useCustomSchema": true,
+        "operation": "update",
+        "tableId": "agendamentos",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('canc_id', 'ID do agendamento a cancelar', 'string') }}"
+            },
+            {
+              "keyName": "cliente_id",
+              "condition": "eq",
+              "keyValue": "={{ $('merge cliente').first().json.cliente_id }}"
+            },
+            {
+              "keyName": "barbearia_id",
+              "condition": "eq",
+              "keyValue": "={{ $('merge cliente').first().json.barbearia_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "cancelado"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        6208,
+        -2384
+      ],
+      "id": "af4deca8-801a-4dd5-a0ac-26645540ee90",
+      "name": "cancelar_horario",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "useCustomSchema": true,
+        "operation": "update",
+        "tableId": "agendamentos",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('reag_id', 'ID do agendamento a reagendar', 'string') }}"
+            },
+            {
+              "keyName": "cliente_id",
+              "condition": "eq",
+              "keyValue": "={{ $('merge cliente').first().json.cliente_id }}"
+            },
+            {
+              "keyName": "barbearia_id",
+              "condition": "eq",
+              "keyValue": "={{ $('merge cliente').first().json.barbearia_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "inicio_at",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('reag_inicio', 'Novo início YYYY-MM-DDTHH:MM:SS-03:00', 'string') }}"
+            },
+            {
+              "fieldId": "fim_at",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('reag_fim', 'Novo fim YYYY-MM-DDTHH:MM:SS-03:00', 'string') }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "agendado"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        6448,
+        -2384
+      ],
+      "id": "504815de-c0e5-46b5-bb3d-f93fb32313c7",
+      "name": "reagendar_horario",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "conversas",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telefone",
+              "condition": "eq",
+              "keyValue": "={{ $('preparar historico cliente1').item.json.cliente.telefone }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "mensagens",
+              "fieldValue": "={{ $('preparar historico cliente1').item.json.historicoAtualizado }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        6720,
+        -2832
+      ],
+      "id": "cf4ca51f-93b8-4b95-9114-9e0c4e66a816",
+      "name": "salvar conversa cliente",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "={{ $('Edit Fields10').item.json.instancia }}",
+        "remoteJid": "={{ $('Edit Fields10').item.json.Telefone }}",
+        "messageText": "={{ $('preparar historico cliente1').first().json.output }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        6976,
+        -2592
+      ],
+      "id": "5bfafbdf-10ba-41a8-98da-9d60d56e4590",
+      "name": "enviar resposta cliente",
+      "credentials": {
+        "evolutionApi": {
+          "id": "NU0fVHIKa1ieWpTy",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "barbear-ia",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        704,
+        -3152
+      ],
+      "id": "f17bce4e-1ab9-49f4-97b6-71d5a00fd0f5",
+      "name": "Webhook1",
+      "webhookId": "0a466b61-cbcb-4bd8-8231-fb6aeb84a1cd"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "ok",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        704,
+        -3344
+      ],
+      "id": "323ed7fe-d1cf-4723-b9bc-910e34a4a213",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "from-me",
+              "leftValue": "={{ $json.body.data.key.fromMe }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        992,
+        -3152
+      ],
+      "id": "16958a1a-e922-45d2-a54f-eef7b7dc207d",
+      "name": "If4"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "sender-pn",
+              "leftValue": "={{ $json.body.data.key.senderPn }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1216,
+        -3136
+      ],
+      "id": "caeb9fd6-b579-4716-8672-9b4e23b7a3bf",
+      "name": "If5"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ef6-nome",
+              "name": "Nome",
+              "value": "={{ $json.body.data.pushName }}",
+              "type": "string"
+            },
+            {
+              "id": "ef6-tel",
+              "name": "Telefone",
+              "value": "={{ $json.body.data.key.senderPn.replaceAll('@s.whatsapp.net','') }}",
+              "type": "string"
+            },
+            {
+              "id": "ef6-tipo",
+              "name": "tipoMensagem",
+              "value": "={{ $json.body.data.messageType }}",
+              "type": "string"
+            },
+            {
+              "id": "ef6-inst",
+              "name": "instancia",
+              "value": "={{ $json.body.instance }}",
+              "type": "string"
+            },
+            {
+              "id": "ef6-id",
+              "name": "id",
+              "value": "={{ $json.body.data.key.id }}",
+              "type": "string"
+            },
+            {
+              "id": "ef6-msg",
+              "name": "mensagem",
+              "value": "={{ $json.body.data.message.conversation }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1392,
+        -3328
+      ],
+      "id": "41bd739c-97c1-4b21-ae0a-a026e900a499",
+      "name": "Edit Fields7"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ef-nome",
+              "name": "Nome",
+              "value": "={{ $json.body.data.pushName }}",
+              "type": "string"
+            },
+            {
+              "id": "ef-tel",
+              "name": "Telefone",
+              "value": "={{ $json.body.data.key.remoteJid.replaceAll('@s.whatsapp.net','') }}",
+              "type": "string"
+            },
+            {
+              "id": "ef-tipo",
+              "name": "tipoMensagem",
+              "value": "={{ $json.body.data.messageType }}",
+              "type": "string"
+            },
+            {
+              "id": "ef-inst",
+              "name": "instancia",
+              "value": "={{ $json.body.instance }}",
+              "type": "string"
+            },
+            {
+              "id": "ef-id",
+              "name": "id",
+              "value": "={{ $json.body.data.key.id }}",
+              "type": "string"
+            },
+            {
+              "id": "ef-msg",
+              "name": "mensagem",
+              "value": "={{ $json.body.data.message.conversation }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1392,
+        -3040
+      ],
+      "id": "da0cc186-1427-4d85-a6ed-69a23b7b9124",
+      "name": "Edit Fields9"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ef8-nome",
+              "name": "Nome",
+              "value": "={{ $('Webhook1').item.json.body.data.pushName }}",
+              "type": "string"
+            },
+            {
+              "id": "ef8-tel",
+              "name": "Telefone",
+              "value": "={{ $json.Telefone }}",
+              "type": "string"
+            },
+            {
+              "id": "ef8-tipo",
+              "name": "tipoMensagem",
+              "value": "={{ $json.tipoMensagem }}",
+              "type": "string"
+            },
+            {
+              "id": "ef8-inst",
+              "name": "instancia",
+              "value": "={{ $('Webhook1').item.json.body.instance }}",
+              "type": "string"
+            },
+            {
+              "id": "ef8-id",
+              "name": "id",
+              "value": "={{ $('Webhook1').item.json.body.data.key.id }}",
+              "type": "string"
+            },
+            {
+              "id": "ef8-msg",
+              "name": "mensagem",
+              "value": "={{ $('Webhook1').item.json.body.data.message.conversation }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1632,
+        -3168
+      ],
+      "id": "638cc6c5-939c-4f75-96b8-4ae8e8b02794",
+      "name": "Edit Fields10"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "barbearias",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "instance_name",
+              "keyValue": "={{ $json.instancia }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1856,
+        -3168
+      ],
+      "id": "0a6d013c-a73e-4bde-ad66-057f9903835d",
+      "name": "barbearia1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "plano",
+              "leftValue": "={{ $json.plano_status }}",
+              "rightValue": "ativo",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2096,
+        -3168
+      ],
+      "id": "8b85bd16-569b-40c2-b7e0-91907e4116d6",
+      "name": "Plano ativo?1"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "={{ $('Edit Fields10').item.json.instancia }}",
+        "remoteJid": "={{ $('Edit Fields10').item.json.Telefone }}",
+        "messageText": "Olá! O serviço está temporariamente indisponível.",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        2096,
+        -3008
+      ],
+      "id": "6e87bb21-80ae-4f8b-9d58-b4bc1828da90",
+      "name": "Plano inativo1",
+      "credentials": {
+        "evolutionApi": {
+          "id": "NU0fVHIKa1ieWpTy",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "barbeiros",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "barbearia_id",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2496,
+        -3184
+      ],
+      "id": "54dee7e2-d642-4784-b43c-b1cb9e09b4e9",
+      "name": "barbeiros1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const barbeiros = $input.all().map(i => i.json);\nconst input = $('Edit Fields10').first().json;\nconst barbearia = $('barbearia1').first().json;\n\nconst tel = input.Telefone?.toString().replace(/\\D/g,'').replace(/^55/,'') || '';\n\nconst barbeiro_atual = barbeiros.find(b => {\n  const t = b.telefone?.toString().replace(/\\D/g,'').replace(/^55/,'') || '';\n  const s = t.length===11 ? t.slice(0,2)+t.slice(3) : t;\n  const c = t.length===10 ? t.slice(0,2)+'9'+t.slice(2) : t;\n  return t===tel || s===tel || c===tel;\n}) || null;\n\nreturn [{ json: {\n  isBarbeiro: barbeiro_atual !== null,\n  isDono: barbeiro_atual?.role === 'dono' || false,\n  barbeiro_atual,\n  barbearia_id: barbearia.id || null,\n  barbearia_nome: barbearia.nome || null,\n  instancia: barbearia.instance_name || null,\n  Telefone: tel,\n  Nome: input.Nome,\n  mensagem: input.mensagem,\n  tipoMensagem: input.tipoMensagem,\n  id: input.id,\n  barbeiros\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2736,
+        -3184
+      ],
+      "id": "48ca37d7-1fcc-4456-b2c2-64cd09969870",
+      "name": "Rotear"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "is-barb",
+              "leftValue": "={{ $json.isBarbeiro }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2960,
+        -3184
+      ],
+      "id": "2d300d4c-f1f8-4d85-8e2c-552ce54a3e6f",
+      "name": "É barbeiro?"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "conversas",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "barbearia_id",
+              "keyValue": "={{ $('Rotear').first().json.barbearia_id }}"
+            },
+            {
+              "keyName": "telefone",
+              "keyValue": "={{ $('Rotear').first().json.Telefone }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        4400,
+        -3840
+      ],
+      "id": "0d0f0743-4667-48d4-9eb6-3683eaf1caa6",
+      "name": "buscar historico barbeiro1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        4688,
+        -3664
+      ],
+      "id": "4aa9856b-9afa-4bf5-9002-f5bd6586306f",
+      "name": "GPT-4o-mini barbeiro1",
+      "credentials": {
+        "openAiApi": {
+          "id": "vmSHfKSB9rqybWsY",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "useCustomSchema": true,
+        "operation": "get",
+        "tableId": "agendamentos",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "barbeiro_id",
+              "keyValue": "={{ $('Rotear').first().json.barbeiro_atual.id }}"
+            },
+            {
+              "keyName": "inicio_at",
+              "keyValue": "={{ $now.setZone('America/Sao_Paulo').startOf('day').toISO() }}"
+            },
+            {
+              "keyName": "inicio_at",
+              "keyValue": "={{ $now.setZone('America/Sao_Paulo').endOf('day').toISO() }}"
+            },
+            {
+              "keyName": "status",
+              "keyValue": "cancelado"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        4528,
+        -3504
+      ],
+      "id": "a11e8feb-bfb5-45af-ba8e-bc29002cf689",
+      "name": "consultar_agenda_hoje1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "useCustomSchema": true,
+        "operation": "get",
+        "tableId": "agendamentos",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "barbeiro_id",
+              "keyValue": "={{ $('Rotear').first().json.barbeiro_atual.id }}"
+            },
+            {
+              "keyName": "inicio_at",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('data_inicio', 'Início do dia desejado: YYYY-MM-DDT00:00:00-03:00', 'string') }}"
+            },
+            {
+              "keyName": "inicio_at",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('data_fim', 'Fim do dia desejado: YYYY-MM-DDT23:59:59-03:00', 'string') }}"
+            },
+            {
+              "keyName": "status",
+              "keyValue": "cancelado"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        4768,
+        -3504
+      ],
+      "id": "39053082-26f9-42ed-9406-3133a01d667e",
+      "name": "consultar_agenda_data1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "useCustomSchema": true,
+        "operation": "get",
+        "tableId": "agendamentos",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "barbeiro_id",
+              "keyValue": "={{ $('Rotear').first().json.barbeiro_atual.id }}"
+            },
+            {
+              "keyName": "status",
+              "keyValue": "concluido"
+            },
+            {
+              "keyName": "inicio_at",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('fat_inicio', 'Início do período ISO', 'string') }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        5008,
+        -3504
+      ],
+      "id": "4c4a06fa-f529-4250-8e8b-6233eafd5f0a",
+      "name": "consultar_faturamento1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "useCustomSchema": true,
+        "operation": "get",
+        "tableId": "clientes",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "barbearia_id",
+              "keyValue": "={{ $('Rotear').first().json.barbearia_id }}"
+            },
+            {
+              "keyName": "nome",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('nome_cliente', 'Nome do cliente', 'string') }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        5248,
+        -3504
+      ],
+      "id": "d2e0f759-b3dc-4fc1-a313-356a0e430f5e",
+      "name": "buscar_cliente1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "useCustomSchema": true,
+        "tableId": "clientes",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "barbearia_id",
+              "fieldValue": "={{ $('Rotear').first().json.barbearia_id }}"
+            },
+            {
+              "fieldId": "nome",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('cli_nome', 'Nome do cliente', 'string') }}"
+            },
+            {
+              "fieldId": "telefone",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('cli_tel', 'Telefone apenas números', 'string') }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        5488,
+        -3504
+      ],
+      "id": "35630a96-3766-49d3-b4ad-3c323c179589",
+      "name": "criar_cliente1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "useCustomSchema": true,
+        "tableId": "agendamentos",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "barbearia_id",
+              "fieldValue": "={{ $('Rotear').first().json.barbearia_id }}"
+            },
+            {
+              "fieldId": "barbeiro_id",
+              "fieldValue": "={{ $('Rotear').first().json.barbeiro_atual.id }}"
+            },
+            {
+              "fieldId": "cliente_id",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('ag_cli_id', 'ID do cliente', 'string') }}"
+            },
+            {
+              "fieldId": "servico",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('ag_servico', 'Nome do serviço', 'string') }}"
+            },
+            {
+              "fieldId": "valor",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('ag_valor', 'Valor em reais', 'number') }}"
+            },
+            {
+              "fieldId": "duracao_min",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('ag_dur', 'Duração em minutos', 'number') }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "agendado"
+            },
+            {
+              "fieldId": "inicio_at",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('ag_inicio', 'Início YYYY-MM-DDTHH:MM:SS-03:00', 'string') }}"
+            },
+            {
+              "fieldId": "fim_at",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('ag_fim', 'Fim YYYY-MM-DDTHH:MM:SS-03:00', 'string') }}"
+            },
+            {
+              "fieldId": "forma_pagamento",
+              "fieldValue": "a_definir"
+            },
+            {
+              "fieldId": "criado_por",
+              "fieldValue": "manual"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        5728,
+        -3504
+      ],
+      "id": "9daa780f-e167-4e62-a742-834ae6dbf0c3",
+      "name": "criar_agendamento1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "useCustomSchema": true,
+        "operation": "update",
+        "tableId": "agendamentos",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('canc_id', 'ID do agendamento', 'string') }}"
+            },
+            {
+              "keyName": "barbearia_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Rotear').first().json.barbearia_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "cancelado"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        5968,
+        -3504
+      ],
+      "id": "3ea1d620-ff99-4674-9b3a-8536a58772b6",
+      "name": "cancelar_agendamento1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "useCustomSchema": true,
+        "operation": "update",
+        "tableId": "agendamentos",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('reag_id', 'ID do agendamento', 'string') }}"
+            },
+            {
+              "keyName": "barbearia_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Rotear').first().json.barbearia_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "inicio_at",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('reag_inicio', 'Novo início YYYY-MM-DDTHH:MM:SS-03:00', 'string') }}"
+            },
+            {
+              "fieldId": "fim_at",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('reag_fim', 'Novo fim YYYY-MM-DDTHH:MM:SS-03:00', 'string') }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "agendado"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        6208,
+        -3504
+      ],
+      "id": "e612a6fd-e5ad-4bf2-805a-ce33e35419c6",
+      "name": "reagendar_agendamento1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "useCustomSchema": true,
+        "operation": "update",
+        "tableId": "agendamentos",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('conc_id', 'ID do agendamento', 'string') }}"
+            },
+            {
+              "keyName": "barbearia_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Rotear').first().json.barbearia_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "concluido"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        6448,
+        -3504
+      ],
+      "id": "536cc1f2-983b-4f10-b9ac-3737a6605044",
+      "name": "concluir_atendimento1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "useCustomSchema": true,
+        "operation": "update",
+        "tableId": "agendamentos",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('ns_id', 'ID do agendamento', 'string') }}"
+            },
+            {
+              "keyName": "barbearia_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Rotear').first().json.barbearia_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "faltou"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        6688,
+        -3504
+      ],
+      "id": "5fd69b56-b2ac-4ff3-b84a-a96a690c0e92",
+      "name": "marcar_noshow1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "useCustomSchema": true,
+        "tableId": "agendamentos",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "barbearia_id",
+              "fieldValue": "={{ $('Rotear').first().json.barbearia_id }}"
+            },
+            {
+              "fieldId": "barbeiro_id",
+              "fieldValue": "={{ $('Rotear').first().json.barbeiro_atual.id }}"
+            },
+            {
+              "fieldId": "servico",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('bloq_motivo', 'Motivo do bloqueio', 'string') }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "bloqueado"
+            },
+            {
+              "fieldId": "inicio_at",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('bloq_inicio', 'Início YYYY-MM-DDTHH:MM:SS-03:00', 'string') }}"
+            },
+            {
+              "fieldId": "fim_at",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('bloq_fim', 'Fim YYYY-MM-DDTHH:MM:SS-03:00', 'string') }}"
+            },
+            {
+              "fieldId": "criado_por",
+              "fieldValue": "manual"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        6928,
+        -3504
+      ],
+      "id": "b9a19d6f-d2bf-4c17-b3b3-630d1eefda8b",
+      "name": "bloquear_horario1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $json.output || '';\nconst dados = $('montar contexto barbeiro').first().json;\nconst hist = [\n  ...(dados.historico||[]),\n  { role:'user', content:dados.mensagem, ts:new Date().toISOString() },\n  { role:'assistant', content:output, ts:new Date().toISOString() }\n].slice(-20);\nreturn [{ json: { ...dados, output, historicoAtualizado: hist } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5120,
+        -3840
+      ],
+      "id": "84d08df8-39a0-4ae4-aae3-54c638dc2e9e",
+      "name": "preparar historico barbeiro1"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "conversas",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telefone",
+              "condition": "eq",
+              "keyValue": "={{ $json.telefone }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "mensagens",
+              "fieldValue": "={{ $('preparar historico barbeiro1').item.json.historicoAtualizado }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        6048,
+        -4256
+      ],
+      "id": "7027bc1d-bb78-4b15-b2d5-d3d9f6fcb225",
+      "name": "salvar conversa barbeiro1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "={{ $('montar contexto barbeiro').first().json.instancia }}",
+        "remoteJid": "={{ $('Edit Fields10').item.json.Telefone }}",
+        "messageText": "={{ $('preparar historico barbeiro1').first().json.output }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        6640,
+        -3840
+      ],
+      "id": "6647954a-78a7-41f5-a25f-4468d8b26e79",
+      "name": "enviar resposta barbeiro1",
+      "credentials": {
+        "evolutionApi": {
+          "id": "NU0fVHIKa1ieWpTy",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "clientes",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "barbearia_id",
+              "keyValue": "={{ $('Rotear').first().json.barbearia_id }}"
+            },
+            {
+              "keyName": "telefone",
+              "keyValue": "={{ $('Edit Fields10').item.json.Telefone }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        4400,
+        -2592
+      ],
+      "id": "6e105e6d-4fdd-4957-8dbe-9f2179e15744",
+      "name": "buscar cliente1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cli-existe",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4640,
+        -2592
+      ],
+      "id": "6f8480ff-25e2-4ffe-8030-1bd46a0732bb",
+      "name": "Cliente existe?1"
+    },
+    {
+      "parameters": {
+        "tableId": "clientes",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "barbearia_id",
+              "fieldValue": "={{ $('barbearia1').item.json.id }}"
+            },
+            {
+              "fieldId": "telefone",
+              "fieldValue": "={{ $('Edit Fields10').item.json.Telefone }}"
+            },
+            {
+              "fieldId": "nome",
+              "fieldValue": "={{ $('Edit Fields7').item.json.Nome }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        4880,
+        -2448
+      ],
+      "id": "7b904ed6-2f4c-4d0f-94f7-feb3d60ad96d",
+      "name": "criar cliente1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "conversas",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "barbearia_id",
+              "keyValue": "={{ $json.barbearia_id }}"
+            },
+            {
+              "keyName": "telefone",
+              "keyValue": "={{ $json.cliente.telefone }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        5360,
+        -2592
+      ],
+      "id": "98f61706-ddcf-4d85-8bce-c8229f64d358",
+      "name": "buscar historico cliente1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const dados = $('merge cliente').first().json;\nconst conv = $('buscar historico cliente1').first().json;\n\nlet historico = [];\nif (conv?.mensagens) {\n  historico = Array.isArray(conv.mensagens) ? conv.mensagens.slice(-20) : JSON.parse(conv.mensagens).slice(-20);\n}\n\nreturn [{ json: { ...dados, historico } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5600,
+        -2592
+      ],
+      "id": "05312a24-c0a5-439c-9041-9b40175e075e",
+      "name": "montar contexto cliente1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.mensagem }}",
+        "options": {
+          "systemMessage": "=Você é o assistente virtual da {{ $json.barbearia_nome }}.\nAtende clientes pelo WhatsApp. NUNCA diga que é IA, robô ou sistema.\nTom: simpático, direto, gírias leves. Emojis moderados (💈✂️📅👍😊).\nRespostas CURTAS. Se não entender: \"Opa, pode repetir? 😅\"\n\nDATA ATUAL: {{ $now.setZone('America/Sao_Paulo').toFormat('dd/MM/yyyy') }}\nHORA ATUAL: {{ $now.setZone('America/Sao_Paulo').toFormat('HH:mm') }}\nDIA DA SEMANA: {{ $now.setZone('America/Sao_Paulo').toFormat('cccc') }}\nAMANHÃ: {{ $now.setZone('America/Sao_Paulo').plus({days:1}).toFormat('dd/MM/yyyy') }} ({{ $now.setZone('America/Sao_Paulo').plus({days:1}).toFormat('cccc') }})\nPROX_SEGUNDA: {{ $now.setZone('America/Sao_Paulo').plus({days: 8 - $now.setZone('America/Sao_Paulo').weekday}).toFormat('dd/MM/yyyy') }}\n\nCLIENTE: {{ $json.Nome || 'Cliente' }} | Tel: {{ $json.Telefone }}\nCLIENTE_ID: {{ $json.cliente_id }}\nBARBEARIA_ID: {{ $json.barbearia_id }}\n\n=== BARBEIROS, SERVIÇOS E HORÁRIOS ===\n{{ $json.barbeiros.map(b => {\n  const servicos = (b.servicos||[]).map(s=>`  - ${s.nome}: R$${s.preco} (${s.duracao_min}min)`).join('\\n')||'  Nenhum';\n  const dias = Object.entries(b.horarios||{}).map(([d,h])=>`  ${d}: ${h.inicio}–${h.fim}`).join('\\n')||'  Não informado';\n  return `▸ ${b.nome} (ID: ${b.id})\\n  Serviços:\\n${servicos}\\n  Funcionamento:\\n${dias}`;\n}).join('\\n\\n') }}\n\n=== REGRAS ===\n1. SEMPRE chame verificar_disponibilidade antes de oferecer qualquer horário\n2. A tool retorna os horários JÁ OCUPADOS — você calcula os livres cruzando com o horário de funcionamento\n3. Só ofereça horários dentro do funcionamento do barbeiro E que não estejam ocupados\n4. Confirmar antes de agendar: \"Confirmo: [serviço] com [barbeiro] dia [data] às [hora]. Pode?\"\n5. Só chamar agendar_horario APÓS confirmação explícita do cliente\n6. Confirmações válidas: sim, pode, fechado, ok, bora, marca aí, tô dentro, claro, isso\n7. Se não informar barbeiro → perguntar qual prefere\n8. Para cancelar/reagendar → chame consultar_meus_agendamentos para pegar o ID correto\n\n=== TOOLS ===\n1. verificar_disponibilidade\n   → Use SEMPRE que cliente mencionar uma data\n   → Retorna agendamentos ocupados naquele dia para TODA A BARBEARIA\n   → disp_inicio: YYYY-MM-DDT00:00:00-03:00 (meia-noite do dia)\n   → disp_fim: YYYY-MM-DDT23:59:59-03:00 (fim do dia)\n   → COMO CALCULAR: use DATA ATUAL acima\n     - \"amanhã\" → {{ $now.setZone('America/Sao_Paulo').plus({days:1}).toFormat('yyyy-MM-dd') }}\n     - \"depois de amanhã\" → {{ $now.setZone('America/Sao_Paulo').plus({days:2}).toFormat('yyyy-MM-dd') }}\n     - \"sexta\" → calcule quantos dias faltam para sexta (weekday=5)\n     - \"semana que vem\" → use PROX_SEGUNDA acima\n   → Após receber o resultado: cruze com horário do barbeiro e ofereça os horários livres\n\n2. consultar_meus_agendamentos\n   → Use quando cliente quiser cancelar ou reagendar\n   → Retorna agendamentos futuros do CLIENTE (não cancelados)\n   → Use para identificar o agendamento_id correto\n   → Mostre ao cliente: data, hora, serviço, barbeiro\n\n3. agendar_horario\n   → Somente após confirmar disponibilidade E receber confirmação do cliente\n   → barbeiro_id: ID do barbeiro escolhido (veja na seção BARBEIROS acima)\n   → inicio_at e fim_at: formato YYYY-MM-DDTHH:MM:SS-03:00\n\n4. cancelar_horario\n   → Use consultar_meus_agendamentos antes para pegar o ID\n   → Confirme: \"Cancelo seu [serviço] de [data] às [hora]?\"\n   → Só cancele após confirmação\n\n5. reagendar_horario\n   → Use consultar_meus_agendamentos para pegar ID do agendamento atual\n   → Use verificar_disponibilidade para confirmar disponibilidade no novo dia\n   → Confirme antes de executar\n\n=== DATAS ===\n- Fuso: America/Sao_Paulo (-03:00)\n- Formato: YYYY-MM-DDTHH:MM:SS-03:00\n- fim_at = inicio_at + duracao_min do serviço\n\nHISTÓRICO: {{ JSON.stringify($json.historico) }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        5840,
+        -2592
+      ],
+      "id": "1f69ced6-0c8f-4a7e-bbed-530e033e6fc6",
+      "name": "AI Agent cliente1"
+    },
+    {
+      "parameters": {
+        "useCustomSchema": true,
+        "operation": "get",
+        "tableId": "agendamentos",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "barbearia_id",
+              "keyValue": "={{ $('merge cliente').first().json.barbearia_id }}"
+            },
+            {
+              "keyName": "inicio_at",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('disp_inicio', 'Meia-noite do dia desejado: YYYY-MM-DDT00:00:00-03:00', 'string') }}"
+            },
+            {
+              "keyName": "inicio_at",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('disp_fim', 'Fim do dia desejado: YYYY-MM-DDT23:59:59-03:00', 'string') }}"
+            },
+            {
+              "keyName": "status",
+              "keyValue": "cancelado"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        5488,
+        -2384
+      ],
+      "id": "9d568e6d-ecfe-4a61-8cff-e82ea2092501",
+      "name": "verificar_disponibilidade1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "useCustomSchema": true,
+        "operation": "get",
+        "tableId": "agendamentos",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "cliente_id",
+              "keyValue": "={{ $('merge cliente').first().json.cliente_id }}"
+            },
+            {
+              "keyName": "inicio_at",
+              "keyValue": "={{ $now.setZone('America/Sao_Paulo').startOf('day').toISO() }}"
+            },
+            {
+              "keyName": "status",
+              "keyValue": "cancelado"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        5728,
+        -2384
+      ],
+      "id": "f49a03ce-f67b-45d3-b0f5-1149da9e0ee1",
+      "name": "consultar_meus_agendamentos1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $json.output || '';\nconst dados = $('montar contexto cliente1').first().json;\nconst hist = [\n  ...(dados.historico||[]),\n  { role:'user', content:dados.mensagem, ts:new Date().toISOString() },\n  { role:'assistant', content:output, ts:new Date().toISOString() }\n].slice(-20);\nreturn [{ json: { ...dados, output, historicoAtualizado: hist } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6080,
+        -2592
+      ],
+      "id": "6f94e3e0-fce3-4cad-b4be-daf6924fdd6b",
+      "name": "preparar historico cliente1"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "conversas",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telefone",
+              "keyValue": "={{ $json.cliente.telefone }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        6288,
+        -2592
+      ],
+      "id": "7edeb2d6-6ce7-4da2-87e4-78d3b019ab9d",
+      "name": "Get a row2",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "33b726c3-fa1f-47af-83e1-313a40666e90",
+              "leftValue": "={{$json.telefone}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        6496,
+        -2592
+      ],
+      "id": "5e559b5d-9f02-4e91-9a71-9d8eda5b34f1",
+      "name": "If6",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "tableId": "conversas",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "telefone",
+              "fieldValue": "={{ $('preparar historico cliente1').item.json.cliente.telefone }}"
+            },
+            {
+              "fieldId": "barbearia_id",
+              "fieldValue": "={{ $('preparar historico cliente1').item.json.barbeiros[0].barbearia_id }}"
+            },
+            {
+              "fieldId": "mensagens",
+              "fieldValue": "={{ $('preparar historico cliente1').item.json.historicoAtualizado }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        6704,
+        -2384
+      ],
+      "id": "d40171eb-6473-48e6-bd72-cb1c5f878976",
+      "name": "Create a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "conversas",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telefone",
+              "keyValue": "={{ $('montar contexto barbeiro').item.json.barbeiro_atual.telefone }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        5328,
+        -3840
+      ],
+      "id": "7311ba88-3b6f-41c9-b2ce-20a4f7fe1c0f",
+      "name": "Get a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "ede312c2-3798-447d-bbe4-7217595e1516",
+              "leftValue": "={{ $json.telefone }}",
+              "rightValue": "={{ $json.telefone }}",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        5536,
+        -3840
+      ],
+      "id": "8106708d-a5fb-4f32-8bf9-1aa1f18cf6bc",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "tableId": "conversas",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "barbearia_id",
+              "fieldValue": "={{ $('barbearia1').item.json.id }}"
+            },
+            {
+              "fieldId": "telefone",
+              "fieldValue": "={{ $('barbeiros1').item.json.telefone }}"
+            },
+            {
+              "fieldId": "mensagens",
+              "fieldValue": "={{ $('preparar historico barbeiro1').item.json.historicoAtualizado }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        6048,
+        -3824
+      ],
+      "id": "7a7a7a08-d71c-4091-8277-3898441e22ed",
+      "name": "salvar conversa barbeiro",
+      "credentials": {
+        "supabaseApi": {
+          "id": "4jM41cH8641qS40c",
+          "name": "barbear.ia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.6-flash",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        5616,
+        -2384
+      ],
+      "id": "4ef5926f-772f-4150-a922-55f9dbaacbe8",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "n2OzzKIAiQ82wYDh",
+          "name": "meu-agente-ulissesmfg@gm"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Webhook1": [
+      {
+        "json": {
+          "headers": {
+            "host": "automacoes-n8n.infrassys.com",
+            "x-real-ip": "172.22.0.2",
+            "x-forwarded-for": "172.22.0.2",
+            "x-forwarded-proto": "https",
+            "x-forwarded-host": "automacoes-n8n.infrassys.com",
+            "x-forwarded-port": "443",
+            "connection": "upgrade",
+            "content-length": "1097",
+            "accept": "application/json, text/plain, */*",
+            "content-type": "application/json",
+            "user-agent": "axios/1.10.0",
+            "accept-encoding": "gzip, compress, deflate, br"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "event": "messages.upsert",
+            "instance": "ugbarber",
+            "data": {
+              "key": {
+                "remoteJid": "123961530679318@lid",
+                "fromMe": false,
+                "id": "3A19EC0653D31F27E082",
+                "senderPn": "553184709312@s.whatsapp.net"
+              },
+              "pushName": "Ulisses",
+              "status": "DELIVERY_ACK",
+              "message": {
+                "messageContextInfo": {
+                  "deviceListMetadata": {
+                    "senderKeyHash": "WmUt4NhpHi8a5g==",
+                    "senderTimestamp": "1778018516",
+                    "recipientKeyHash": "XQoTOcrBWHlLlA==",
+                    "recipientTimestamp": "1765911757"
+                  },
+                  "deviceListMetadataVersion": 2,
+                  "messageSecret": "vuIFb4fuma4R3DV2bUPSR09fJGJPcRHZPY3Z72hxYB4="
+                },
+                "conversation": "Tenho horario amanhã?"
+              },
+              "contextInfo": {
+                "expiration": 7776000,
+                "ephemeralSettingTimestamp": "1755171566",
+                "disappearingMode": {
+                  "initiator": "INITIATED_BY_ME",
+                  "trigger": "ACCOUNT_SETTING",
+                  "initiatedByMe": true
+                }
+              },
+              "messageType": "conversation",
+              "messageTimestamp": 1778194020,
+              "instanceId": "db29b51c-3427-4a59-ac88-13af52de41de",
+              "source": "ios"
+            },
+            "destination": "https://automacoes-n8n.infrassys.com/webhook/barbear-ia",
+            "date_time": "2026-05-07T19:47:00.377Z",
+            "sender": "353833284869@s.whatsapp.net",
+            "server_url": "http://localhost:9090",
+            "apikey": "6103B3F3-589C-40ED-9B5F-B6548F674005"
+          },
+          "webhookUrl": "https://automacoes-n8n.infrassys.com/webhook/barbear-ia",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Switch barbeiro": {
+      "main": [
+        [
+          {
+            "node": "buscar historico barbeiro1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Obter audio barbeiro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obter audio barbeiro": {
+      "main": [
+        [
+          {
+            "node": "Converter audio barbeiro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Converter audio barbeiro": {
+      "main": [
+        [
+          {
+            "node": "Transcrever audio barbeiro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcrever audio barbeiro": {
+      "main": [
+        [
+          {
+            "node": "Merge audio barbeiro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge audio barbeiro": {
+      "main": [
+        [
+          {
+            "node": "buscar historico barbeiro1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "montar contexto barbeiro": {
+      "main": [
+        [
+          {
+            "node": "AI Agent barbeiro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent barbeiro": {
+      "main": [
+        [
+          {
+            "node": "preparar historico barbeiro1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memory barbeiro": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent barbeiro",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch cliente": {
+      "main": [
+        [
+          {
+            "node": "buscar cliente1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Obter audio cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obter audio cliente": {
+      "main": [
+        [
+          {
+            "node": "Converter audio cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Converter audio cliente": {
+      "main": [
+        [
+          {
+            "node": "Transcrever audio cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcrever audio cliente": {
+      "main": [
+        [
+          {
+            "node": "Merge audio cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge audio cliente": {
+      "main": [
+        [
+          {
+            "node": "buscar cliente1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "merge cliente": {
+      "main": [
+        [
+          {
+            "node": "buscar historico cliente1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "salvar conversa cliente": {
+      "main": [
+        [
+          {
+            "node": "enviar resposta cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT-4o-mini cliente": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "Memory cliente": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent cliente1",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "agendar_horario": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent cliente1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "cancelar_horario": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent cliente1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "reagendar_horario": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent cliente1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "If4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If4": {
+      "main": [
+        [],
+        [
+          {
+            "node": "If5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If5": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields7",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields9",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields7": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields10",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields9": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields10",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields10": {
+      "main": [
+        [
+          {
+            "node": "barbearia1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "barbearia1": {
+      "main": [
+        [
+          {
+            "node": "Plano ativo?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plano ativo?1": {
+      "main": [
+        [
+          {
+            "node": "barbeiros1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Plano inativo1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "barbeiros1": {
+      "main": [
+        [
+          {
+            "node": "Rotear",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rotear": {
+      "main": [
+        [
+          {
+            "node": "É barbeiro?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É barbeiro?": {
+      "main": [
+        [
+          {
+            "node": "Switch barbeiro",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Switch cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "buscar historico barbeiro1": {
+      "main": [
+        [
+          {
+            "node": "montar contexto barbeiro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT-4o-mini barbeiro1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent barbeiro",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "consultar_agenda_hoje1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent barbeiro",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "consultar_agenda_data1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent barbeiro",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "consultar_faturamento1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent barbeiro",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "buscar_cliente1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent barbeiro",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "criar_cliente1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent barbeiro",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "criar_agendamento1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent barbeiro",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "cancelar_agendamento1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent barbeiro",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "reagendar_agendamento1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent barbeiro",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "concluir_atendimento1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent barbeiro",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "marcar_noshow1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent barbeiro",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "bloquear_horario1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent barbeiro",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "preparar historico barbeiro1": {
+      "main": [
+        [
+          {
+            "node": "Get a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "salvar conversa barbeiro1": {
+      "main": [
+        [
+          {
+            "node": "enviar resposta barbeiro1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "buscar cliente1": {
+      "main": [
+        [
+          {
+            "node": "Cliente existe?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cliente existe?1": {
+      "main": [
+        [
+          {
+            "node": "merge cliente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "criar cliente1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "criar cliente1": {
+      "main": [
+        [
+          {
+            "node": "merge cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "buscar historico cliente1": {
+      "main": [
+        [
+          {
+            "node": "montar contexto cliente1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "montar contexto cliente1": {
+      "main": [
+        [
+          {
+            "node": "AI Agent cliente1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent cliente1": {
+      "main": [
+        [
+          {
+            "node": "preparar historico cliente1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "verificar_disponibilidade1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent cliente1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "consultar_meus_agendamentos1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent cliente1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "preparar historico cliente1": {
+      "main": [
+        [
+          {
+            "node": "Get a row2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a row2": {
+      "main": [
+        [
+          {
+            "node": "If6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If6": {
+      "main": [
+        [
+          {
+            "node": "salvar conversa cliente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a row": {
+      "main": [
+        [
+          {
+            "node": "enviar resposta cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a row": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "salvar conversa barbeiro1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "salvar conversa barbeiro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "salvar conversa barbeiro": {
+      "main": [
+        [
+          {
+            "node": "enviar resposta barbeiro1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent cliente1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timeSavedMode": "fixed",
+    "saveDataSuccessExecution": "all",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "3bdf075d-db89-4229-9cd0-cc5e978a05fa",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "807138b7646fc3b35fe8d414d5cd61eb6889d95886d54e7341e1a712e0242dc1"
+  },
+  "id": "wMy3FuFY0Lg6xjoc",
+  "tags": []
+}
