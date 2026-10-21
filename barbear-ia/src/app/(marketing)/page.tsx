@@ -205,34 +205,6 @@ export default function LandingPage() {
       </section>
 
       {/* ============================================
-          PLANOS (venda consultiva)
-          ============================================ */}
-      <section id="precos" className="py-20 sm:py-28">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
-          <span className="text-xs font-semibold uppercase tracking-wider text-brand">
-            Planos
-          </span>
-          <h2 className="mt-3 text-3xl sm:text-4xl font-bold text-brand">
-            Implantação e plano
-            <br />
-            <span className="text-slate-700">sob medida para a sua barbearia.</span>
-          </h2>
-          <p className="mt-3 text-slate-600">
-            Conversamos sobre a sua operação, configuramos tudo e acompanhamos
-            os primeiros dias com você.
-          </p>
-          <div className="mt-8">
-            <Link
-              href="/pricing"
-              className="text-sm font-semibold text-brand hover:text-brand-light underline underline-offset-2"
-            >
-              Ver o que está incluso
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* ============================================
           FAQ
           ============================================ */}
       <section id="faq" className="bg-brand-50/40 py-20 sm:py-24 border-y border-brand-100">
