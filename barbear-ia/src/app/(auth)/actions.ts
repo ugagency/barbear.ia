@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { configurarWebhookESettings } from '@/lib/evolution'
@@ -20,12 +21,14 @@ export async function signUp(input: {
   senha: string
 }): Promise<ActionResult<{ needsEmailConfirmation: boolean }>> {
   const supabase = await createClient()
+  const origin = (await headers()).get('origin')
 
   const { data, error } = await supabase.auth.signUp({
     email: input.email,
     password: input.senha,
     options: {
       data: { nome: input.nome },
+      ...(origin && { emailRedirectTo: `${origin}/auth/callback?next=/onboarding` }),
     },
   })
 
