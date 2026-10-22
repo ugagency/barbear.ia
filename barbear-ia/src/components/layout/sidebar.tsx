@@ -129,7 +129,9 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
       <div className="px-3 py-4 border-t border-white/10">
         <div className="mb-3 px-3 flex items-center gap-1.5 text-[10px] tracking-[0.12em] text-white/50">
           <span className="normal-case tracking-normal">by</span>
-          <Image src="/spictur-lettering-white.svg" alt="Spictur" width={78} height={15} className="h-[14px] w-auto opacity-90" />
+          <span className="inline-flex items-center rounded bg-white px-2 py-1">
+            <Image src="/spictur-principal-preto-mostarda.svg" alt="Spictur" width={100} height={24} className="h-[24px] w-auto" />
+          </span>
         </div>
         <Button
           variant="ghost"
