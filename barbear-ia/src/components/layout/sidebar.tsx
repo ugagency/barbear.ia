@@ -71,25 +71,33 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         <Link
           href="/agenda"
           onClick={onNavigate}
-          className="flex items-center gap-2.5"
+          className="flex min-w-0 items-center gap-3"
         >
-          <Image
-            src="/logomarca barbear.ia.png"
-            alt="Barbear.IA"
-            width={36}
-            height={36}
-            className="rounded-md bg-white/5"
-          />
-          <span className="text-lg font-bold tracking-tight">Barbear.IA</span>
+          {barbearia?.logo_url ? (
+            <span className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white p-1.5">
+              <Image
+                src={barbearia.logo_url}
+                alt={`Logo da ${barbearia.nome}`}
+                width={48}
+                height={48}
+                unoptimized
+                className="h-full w-full object-contain"
+              />
+            </span>
+          ) : (
+            <span className="flex size-12 shrink-0 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-xl font-bold text-white">
+              {(barbearia?.nome ?? 'B').trim().charAt(0).toUpperCase()}
+            </span>
+          )}
+          <span className="min-w-0 flex-1">
+            <span className="block text-[11px] uppercase tracking-wider text-white/55">Barbearia</span>
+            <span className="block truncate text-sm font-semibold text-white">
+              {isLoading ? 'Carregando...' : barbearia?.nome ?? 'Sua barbearia'}
+            </span>
+          </span>
         </Link>
-        <div className="mt-4 space-y-1.5">
-          <p className="text-[11px] uppercase tracking-wide text-white/50">
-            Barbearia
-          </p>
-          <p className="text-sm font-semibold truncate">
-            {isLoading ? 'Carregando...' : barbearia?.nome ?? 'Sua barbearia'}
-          </p>
-          {barbearia && (
+        {barbearia && (
+          <div className="mt-3 pl-[60px]">
             <Badge
               className={cn(
                 'border-transparent text-[10px] uppercase tracking-wide',
@@ -98,8 +106,8 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
             >
               {PLANOS[plano]?.nome ?? 'Trial'}
             </Badge>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1">
@@ -129,7 +137,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
       <div className="px-3 py-4 border-t border-white/10">
         <div className="mb-3 px-3 flex items-center gap-1.5 text-[10px] tracking-[0.12em] text-white/50">
           <span className="normal-case tracking-normal">by</span>
-          <span className="font-bold text-xs tracking-[0.16em] text-white/85">SPICTUR</span>
+          <Image src="/spictur-principal-branco-mostarda.svg" alt="Spictur" width={100} height={24} className="h-[24px] w-auto" />
         </div>
         <Button
           variant="ghost"

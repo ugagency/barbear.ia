@@ -36,7 +36,7 @@ export function Footer() {
             <span className="text-slate-300" aria-hidden="true">·</span>
             <span className="inline-flex items-center gap-1.5">
               <span>by</span>
-              <span className="font-bold tracking-[0.15em] text-slate-800">SPICTUR</span>
+              <Image src="/spictur-principal-preto-mostarda.svg" alt="Spictur" width={112} height={26} className="h-[26px] w-auto" />
             </span>
           </div>
           <div className="flex gap-4">
