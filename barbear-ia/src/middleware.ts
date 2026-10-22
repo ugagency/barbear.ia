@@ -1,8 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const AUTH_ROUTES = ['/login', '/cadastro']
-const APP_ROUTES = ['/agenda', '/clientes', '/configuracoes', '/metricas']
+const AUTH_ROUTES = ['/cadastro']
+const APP_ROUTES = ['/agenda', '/clientes', '/configuracoes', '/metricas', '/gestao']
 // /configuracoes NÃO está aqui — usuário inadimplente precisa conseguir pagar
 const PLAN_PROTECTED = ['/agenda', '/clientes', '/metricas']
 
@@ -88,5 +88,6 @@ export const config = {
     '/metricas/:path*',
     '/login',
     '/cadastro',
+    '/gestao/:path*',
   ],
 }
