@@ -17,4 +17,4 @@ export interface AgendamentoComJoins extends Agendamento {
 }
 
 export interface BarbeiroOpcao
-  extends Pick<Barbeiro, 'id' | 'nome' | 'servicos' | 'horarios' | 'ativo'> {}
+  extends Pick<Barbeiro, 'id' | 'nome' | 'servicos' | 'horarios' | 'bloqueios' | 'horarios_fixos' | 'ativo'> {}
