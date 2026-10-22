@@ -524,16 +524,6 @@ function PassoData({
   )
 }
 
-function criarOcupacao(baseDate: Date, inicio: string, fim: string): Ocupacao {
-  const [hi, mi] = inicio.split(':').map(Number)
-  const [hf, mf] = fim.split(':').map(Number)
-  const di = new Date(baseDate)
-  di.setHours(hi, mi, 0, 0)
-  const df = new Date(baseDate)
-  df.setHours(hf, mf, 0, 0)
-  return { inicio: di, fim: df }
-}
-
 // ============================================================
 // Calendário simples
 // ============================================================
