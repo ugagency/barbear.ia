@@ -40,6 +40,10 @@ export interface Bloqueio {
   inicio: string
   fim: string
   motivo: string
+  frequencia?: 'semanal' | 'quinzenal' | 'mensal' | 'pontual'
+  data_inicio?: string
+  data_fim?: string
+  semana_mes?: number
 }
 
 export interface HorarioFixo {
@@ -47,6 +51,10 @@ export interface HorarioFixo {
   inicio: string
   fim: string
   cliente: string
+  frequencia?: 'semanal' | 'quinzenal' | 'mensal' | 'pontual'
+  data_inicio?: string
+  data_fim?: string
+  semana_mes?: number
 }
 
 export interface ConfigBarbearia {

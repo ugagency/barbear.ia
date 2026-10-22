@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -94,7 +95,7 @@ export function AbaHorarios({ barbeiros, onSaved }: Props) {
       ...s,
       bloqueios: [
         ...s.bloqueios,
-        { dia_semana: 'ter', inicio: '12:00', fim: '13:00', motivo: 'Almoço' },
+        { dia_semana: 'ter', inicio: '12:00', fim: '13:00', motivo: 'Almoço', frequencia: 'semanal' },
       ],
     }))
   }
@@ -118,7 +119,7 @@ export function AbaHorarios({ barbeiros, onSaved }: Props) {
       ...s,
       horarios_fixos: [
         ...s.horarios_fixos,
-        { dia_semana: 'qui', inicio: '09:00', fim: '10:00', cliente: '' },
+        { dia_semana: 'qui', inicio: '09:00', fim: '10:00', cliente: '', frequencia: 'semanal' },
       ],
     }))
   }
@@ -325,6 +326,39 @@ export function AbaHorarios({ barbeiros, onSaved }: Props) {
                     <Trash2 className="size-3.5" />
                   </Button>
                 </div>
+                                <div className="col-span-12 grid grid-cols-2 sm:grid-cols-4 gap-2 rounded-md bg-slate-50 p-2">
+                  <div>
+                    <Label className="text-xs">Recorrência</Label>
+                    <Select value={b.frequencia ?? 'semanal'} onValueChange={(v) => setBloqueio(idx, { frequencia: v as 'semanal' | 'quinzenal' | 'mensal' | 'pontual' })}>
+                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="semanal">Semanal</SelectItem>
+                        <SelectItem value="quinzenal">Quinzenal</SelectItem>
+                        <SelectItem value="mensal">Mensal</SelectItem>
+                        <SelectItem value="pontual">Data específica</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">A partir de</Label>
+                    <Input type="date" value={b.data_inicio ?? ''} onChange={(e) => setBloqueio(idx, { data_inicio: e.target.value || undefined })} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Até (opcional)</Label>
+                    <Input type="date" value={b.data_fim ?? ''} onChange={(e) => setBloqueio(idx, { data_fim: e.target.value || undefined })} />
+                  </div>
+                  {b.frequencia === 'mensal' && (
+                    <div>
+                      <Label className="text-xs">Semana do mês</Label>
+                      <Select value={String(b.semana_mes ?? 1)} onValueChange={(v) => setBloqueio(idx, { semana_mes: Number(v) })}>
+                        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {[1,2,3,4,5].map((n) => <SelectItem key={n} value={String(n)}>{n}ª semana</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -407,6 +441,39 @@ export function AbaHorarios({ barbeiros, onSaved }: Props) {
                   >
                     <Trash2 className="size-3.5" />
                   </Button>
+                </div>
+                                <div className="col-span-12 grid grid-cols-2 sm:grid-cols-4 gap-2 rounded-md bg-slate-50 p-2">
+                  <div>
+                    <Label className="text-xs">Recorrência</Label>
+                    <Select value={h.frequencia ?? 'semanal'} onValueChange={(v) => setHorarioFixo(idx, { frequencia: v as 'semanal' | 'quinzenal' | 'mensal' | 'pontual' })}>
+                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="semanal">Semanal</SelectItem>
+                        <SelectItem value="quinzenal">Quinzenal</SelectItem>
+                        <SelectItem value="mensal">Mensal</SelectItem>
+                        <SelectItem value="pontual">Data específica</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">A partir de</Label>
+                    <Input type="date" value={h.data_inicio ?? ''} onChange={(e) => setHorarioFixo(idx, { data_inicio: e.target.value || undefined })} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Até (opcional)</Label>
+                    <Input type="date" value={h.data_fim ?? ''} onChange={(e) => setHorarioFixo(idx, { data_fim: e.target.value || undefined })} />
+                  </div>
+                  {h.frequencia === 'mensal' && (
+                    <div>
+                      <Label className="text-xs">Semana do mês</Label>
+                      <Select value={String(h.semana_mes ?? 1)} onValueChange={(v) => setHorarioFixo(idx, { semana_mes: Number(v) })}>
+                        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {[1,2,3,4,5].map((n) => <SelectItem key={n} value={String(n)}>{n}ª semana</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

@@ -251,7 +251,15 @@ const horarioDiaSchema = z.object({
   fim: z.string().regex(/^\d{2}:\d{2}$/, 'Formato HH:MM'),
 })
 
+const recorrenciaCampos = {
+  frequencia: z.enum(['semanal', 'quinzenal', 'mensal', 'pontual']).optional(),
+  data_inicio: z.iso.date().optional(),
+  data_fim: z.iso.date().optional(),
+  semana_mes: z.number().int().min(1).max(5).optional(),
+}
+
 const bloqueioSchema = z.object({
+  ...recorrenciaCampos,
   dia_semana: z.string().min(1),
   inicio: z.string().regex(/^\d{2}:\d{2}$/),
   fim: z.string().regex(/^\d{2}:\d{2}$/),
@@ -259,6 +267,7 @@ const bloqueioSchema = z.object({
 })
 
 const horarioFixoSchema = z.object({
+  ...recorrenciaCampos,
   dia_semana: z.string().min(1),
   inicio: z.string().regex(/^\d{2}:\d{2}$/),
   fim: z.string().regex(/^\d{2}:\d{2}$/),
@@ -284,6 +293,17 @@ export async function atualizarHorariosBarbeiro(
   const parsed = horariosSchema.safeParse(input)
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' }
+  }
+  for (const regra of [...parsed.data.bloqueios, ...parsed.data.horarios_fixos]) {
+    if ((regra.frequencia === 'quinzenal' || regra.frequencia === 'pontual') && !regra.data_inicio) {
+      return { success: false, error: 'Informe a data inicial da recorrência.' }
+    }
+    if (regra.data_inicio && regra.data_fim && regra.data_fim < regra.data_inicio) {
+      return { success: false, error: 'A data final precisa ser posterior à inicial.' }
+    }
+    if (regra.inicio >= regra.fim) {
+      return { success: false, error: 'A hora final deve ser posterior à inicial.' }
+    }
   }
   const ctx = await getContext()
   if (!ctx.ok) return { success: false, error: ctx.error }

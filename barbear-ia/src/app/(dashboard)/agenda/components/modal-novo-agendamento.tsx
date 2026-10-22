@@ -27,6 +27,7 @@ import { createClient } from '@/lib/supabase/client'
 
 import { ClientePicker, type ClienteSelecionado } from './cliente-picker'
 import { gerarSlotsDoDia, type Ocupacao } from './slots'
+import { ocupacoesFixasNoDia } from '@/lib/disponibilidade'
 import { criarAgendamento } from '../actions'
 import type { BarbeiroOpcao } from '../types'
 import type { FormaPagamento, Servico } from '@/types'
@@ -133,7 +134,10 @@ export function ModalNovoAgendamento({
   const slots = useMemo(() => {
     if (!barbeiroSelecionado) return []
     const dt = new Date(`${data}T00:00:00`)
-    return gerarSlotsDoDia(barbeiroSelecionado, dt, duracao, ocupacoes)
+    return gerarSlotsDoDia(barbeiroSelecionado, dt, duracao, [
+      ...ocupacoes,
+      ...ocupacoesFixasNoDia(dt, barbeiroSelecionado.bloqueios ?? [], barbeiroSelecionado.horarios_fixos ?? []),
+    ])
   }, [barbeiroSelecionado, data, duracao, ocupacoes])
 
   function handleServicoChange(nome: string) {
