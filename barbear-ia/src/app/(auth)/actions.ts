@@ -5,6 +5,7 @@ import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { configurarWebhookESettings } from '@/lib/evolution'
+import { getPlatformAdmin } from '@/lib/platform-admin'
 import type { ConfigBarbearia, HorarioDia, Servico } from '@/types'
 
 type ActionResult<T = undefined> =
@@ -20,6 +21,8 @@ export async function signUp(input: {
   email: string
   senha: string
 }): Promise<ActionResult<{ needsEmailConfirmation: boolean }>> {
+  return { success: false, error: 'O cadastro é realizado pela equipe Barbear.IA. Solicite um convite de acesso.' }
+  /* Cadastro público desativado.
   const supabase = await createClient()
   const origin = (await headers()).get('origin')
 
@@ -41,12 +44,13 @@ export async function signUp(input: {
 
   const needsEmailConfirmation = !data.session
   return { success: true, data: { needsEmailConfirmation } }
+  */
 }
 
 export async function signIn(input: {
   email: string
   senha: string
-}): Promise<ActionResult<{ hasBarbearia: boolean }>> {
+}): Promise<ActionResult<{ hasBarbearia: boolean; isPlatformAdmin: boolean }>> {
   const supabase = await createClient()
 
   const { data, error } = await supabase.auth.signInWithPassword({
@@ -64,7 +68,8 @@ export async function signIn(input: {
     .eq('user_id', data.user.id)
     .maybeSingle()
 
-  return { success: true, data: { hasBarbearia: !!vinculo } }
+  const isPlatformAdmin = !!(await getPlatformAdmin())
+  return { success: true, data: { hasBarbearia: !!vinculo, isPlatformAdmin } }
 }
 
 export async function signOut(): Promise<ActionResult> {
@@ -165,6 +170,8 @@ export async function createBarbearia(
   if (!user) {
     return { success: false, error: 'Sessão expirada. Faça login novamente.' }
   }
+  return { success: false, error: 'O cadastro de barbearias agora é feito exclusivamente pela equipe.' }
+  /* Fluxo antigo de autosserviço desativado.
 
   // Garantir que o usuário ainda não está vinculado a nenhuma barbearia
   const { data: vinculoExistente } = await supabaseAdmin
@@ -292,4 +299,5 @@ export async function createBarbearia(
 
   revalidatePath('/', 'layout')
   return { success: true, data: { barbeariaId } }
+  */
 }
