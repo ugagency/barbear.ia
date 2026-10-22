@@ -18,7 +18,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       {children}
       <div className="mt-7 flex items-center justify-center gap-1.5 text-xs text-white/50">
         <span>by</span>
-        <Image src="/spictur-lettering-white.svg" alt="Spictur" width={82} height={16} className="h-[15px] w-auto opacity-90" />
+        <span className="inline-flex items-center rounded bg-white px-2 py-1">
+          <Image src="/spictur-principal-preto-mostarda.svg" alt="Spictur" width={112} height={26} className="h-[26px] w-auto" />
+        </span>
       </div>
       <p className="mt-3 text-center text-xs text-white/60">
         © {new Date().getFullYear()} Barbear.IA — Recepcionista digital para barbearias.
