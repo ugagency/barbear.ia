@@ -45,7 +45,7 @@ export default function LoginPage() {
         return
       }
       toast.success('Bem-vindo de volta!')
-      router.replace(result.data?.hasBarbearia ? '/agenda' : '/onboarding')
+      router.replace(result.data?.isPlatformAdmin ? '/gestao' : result.data?.hasBarbearia ? '/agenda' : '/login')
       router.refresh()
     })
   }
@@ -120,12 +120,7 @@ export default function LoginPage() {
         </Button>
       </form>
 
-      <p className="text-center text-sm text-slate-600">
-        Não tem conta?{' '}
-        <Link href="/cadastro" className="font-medium text-brand hover:text-brand-light">
-          Crie uma grátis
-        </Link>
-      </p>
+      <p className="text-center text-sm text-slate-600">Seu acesso é liberado pela equipe Barbear.IA.</p>
     </div>
   )
 }
