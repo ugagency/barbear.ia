@@ -31,7 +31,14 @@ export function Footer() {
           </nav>
         </div>
         <div className="mt-8 pt-6 border-t border-brand-100/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-slate-500">
-          <p>© {new Date().getFullYear()} Barbear.IA · Todos os direitos reservados.</p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <p>© {new Date().getFullYear()} Barbear.IA · Todos os direitos reservados.</p>
+            <span className="text-slate-300" aria-hidden="true">·</span>
+            <span className="inline-flex items-center gap-1.5">
+              <span>by</span>
+              <span className="font-bold tracking-[0.15em] text-slate-800">SPICTUR</span>
+            </span>
+          </div>
           <div className="flex gap-4">
             <Link href="#" className="hover:text-brand">
               Política de privacidade
