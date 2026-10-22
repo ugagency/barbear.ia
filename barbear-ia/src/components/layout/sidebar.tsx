@@ -74,13 +74,13 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
           className="flex items-center gap-2.5"
         >
           <Image
-            src="/logomarca barbear.ia.png"
+            src="/barbear-ia-logo-branca.svg"
             alt="Barbear.IA"
-            width={36}
-            height={36}
-            className="rounded-md bg-white/5"
+            width={148}
+            height={110}
+            className="h-auto w-[148px]"
+            priority
           />
-          <span className="text-lg font-bold tracking-tight">Barbear.IA</span>
         </Link>
         <div className="mt-4 space-y-1.5">
           <p className="text-[11px] uppercase tracking-wide text-white/50">
