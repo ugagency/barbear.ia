@@ -71,27 +71,33 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         <Link
           href="/agenda"
           onClick={onNavigate}
-          className="flex items-center gap-2.5"
+          className="flex min-w-0 items-center gap-3"
         >
-          <span aria-label="Barbear.IA" role="img" className="relative block h-[108px] w-[150px] shrink-0 overflow-hidden">
-            <Image
-              src="/logomarca barbear.ia.png"
-              alt=""
-              width={1536}
-              height={2048}
-              className="pointer-events-none absolute left-1/2 top-1/2 h-[421px] w-[316px] max-w-none -translate-x-1/2 -translate-y-1/2 brightness-0 invert"
-              priority
-            />
+          {barbearia?.logo_url ? (
+            <span className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white p-1.5">
+              <Image
+                src={barbearia.logo_url}
+                alt={`Logo da ${barbearia.nome}`}
+                width={48}
+                height={48}
+                unoptimized
+                className="h-full w-full object-contain"
+              />
+            </span>
+          ) : (
+            <span className="flex size-12 shrink-0 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-xl font-bold text-white">
+              {(barbearia?.nome ?? 'B').trim().charAt(0).toUpperCase()}
+            </span>
+          )}
+          <span className="min-w-0 flex-1">
+            <span className="block text-[11px] uppercase tracking-wider text-white/55">Barbearia</span>
+            <span className="block truncate text-sm font-semibold text-white">
+              {isLoading ? 'Carregando...' : barbearia?.nome ?? 'Sua barbearia'}
+            </span>
           </span>
         </Link>
-        <div className="mt-4 space-y-1.5">
-          <p className="text-[11px] uppercase tracking-wide text-white/50">
-            Barbearia
-          </p>
-          <p className="text-sm font-semibold truncate">
-            {isLoading ? 'Carregando...' : barbearia?.nome ?? 'Sua barbearia'}
-          </p>
-          {barbearia && (
+        {barbearia && (
+          <div className="mt-3 pl-[60px]">
             <Badge
               className={cn(
                 'border-transparent text-[10px] uppercase tracking-wide',
@@ -100,8 +106,8 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
             >
               {PLANOS[plano]?.nome ?? 'Trial'}
             </Badge>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1">
