@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import { EditarBarbeariaForm, ConvidarResponsavelForm } from './forms'
+import { EditarBarbeariaForm, ConvidarResponsavelForm, ExcluirBarbeariaForm } from './forms'
 
 export default async function Detalhe({ params }: { params: Promise<{id: string}> }) {
   const { id } = await params
@@ -24,6 +24,7 @@ export default async function Detalhe({ params }: { params: Promise<{id: string}
           <p className="mt-1 text-xs text-slate-500">{(people ?? []).length} usuário(s) vinculados</p>
           <div className="mt-3 space-y-2">{(people ?? []).map(p => <p key={p.user_id} className="rounded bg-slate-50 p-2 text-xs text-slate-700">{p.role} · {p.user_id}</p>)}</div>
         </section>
+        <ExcluirBarbeariaForm id={b.id} nome={b.nome} />
       </div>
     </div>
   </div>
