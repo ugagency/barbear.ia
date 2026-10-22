@@ -1,6 +1,7 @@
 'use client'
 import { useState, useTransition } from 'react'
-import { atualizarBarbearia, convidarResponsavel } from '../actions'
+import { useRouter } from 'next/navigation'
+import { atualizarBarbearia, convidarResponsavel, excluirBarbearia } from '../actions'
 
 export function EditarBarbeariaForm({ barbearia }: { barbearia: {id:string; nome:string; telefone:string|null;email:string|null;plano:string;plano_status:string} }) {
   const [pending,start] = useTransition()
@@ -35,4 +36,35 @@ export function ConvidarResponsavelForm({id}:{id:string}) {
     {message&&<p role="status" className="text-sm text-slate-700">{message}</p>}
     <button disabled={pending} className="rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">Enviar convite</button>
   </form>
+}
+
+export function ExcluirBarbeariaForm({id,nome}:{id:string;nome:string}) {
+  const router = useRouter()
+  const [open,setOpen] = useState(false)
+  const [confirmation,setConfirmation] = useState('')
+  const [error,setError] = useState('')
+  const [pending,start] = useTransition()
+  return <section className="rounded-xl border border-red-200 bg-white p-5 space-y-3">
+    <h2 className="text-base font-semibold text-red-700">Zona de perigo</h2>
+    <p className="text-sm text-slate-600">A exclusão é permanente e remove os barbeiros, clientes, agendamentos, conversas e demais dados vinculados à barbearia.</p>
+    {!open ? <button type="button" onClick={()=>setOpen(true)} className="rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50">Excluir barbearia</button> :
+    <form className="space-y-3 rounded-lg border border-red-200 bg-red-50/40 p-4" onSubmit={e=>{
+      e.preventDefault()
+      setError('')
+      start(async ()=>{
+        const result=await excluirBarbearia({id,confirmacao:confirmation})
+        if (!result.success) return setError(result.error ?? 'Não foi possível excluir.')
+        router.replace('/gestao')
+        router.refresh()
+      })
+    }}>
+      <p className="text-sm text-slate-800">Para excluir permanentemente, digite <strong className="select-all">{nome}</strong> abaixo:</p>
+      <input type="text" value={confirmation} onChange={e=>setConfirmation(e.target.value)} autoComplete="off" aria-label="Confirme o nome da barbearia" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-red-500" />
+      {error&&<p role="alert" className="text-sm text-red-700">{error}</p>}
+      <div className="flex flex-wrap gap-2">
+        <button type="submit" disabled={pending||confirmation!==nome} className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">{pending?'Excluindo...':'Confirmar exclusão permanente'}</button>
+        <button type="button" disabled={pending} onClick={()=>{setOpen(false);setConfirmation('');setError('')}} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">Cancelar</button>
+      </div>
+    </form>}
+  </section>
 }

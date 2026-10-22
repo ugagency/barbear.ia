@@ -86,3 +86,40 @@ export async function convidarResponsavel(input: z.infer<typeof inviteSchema>) {
   revalidatePath(`/gestao/${id}`)
   return { success: true }
 }
+
+const deleteSchema = z.object({
+  id: z.uuid(),
+  confirmacao: z.string().min(1),
+})
+
+export async function excluirBarbearia(input: z.infer<typeof deleteSchema>) {
+  if (!await getPlatformAdmin()) return { success: false, error: 'Acesso negado.' }
+  const parsed = deleteSchema.safeParse(input)
+  if (!parsed.success) return { success: false, error: 'Confirmação inválida.' }
+
+  const { id, confirmacao } = parsed.data
+  const { data: barbearia, error: lookupError } = await supabaseAdmin
+    .from('barbearias')
+    .select('id,nome')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (lookupError || !barbearia) return { success: false, error: 'Barbearia não encontrada.' }
+  if (confirmacao !== barbearia.nome) {
+    return { success: false, error: 'Digite exatamente o nome da barbearia para confirmar.' }
+  }
+
+  // As tabelas vinculadas (barbeiros, clientes, agendamentos, conversas,
+  // lembretes e vínculos de usuários) possuem ON DELETE CASCADE.
+  const { data: deleted, error: deleteError } = await supabaseAdmin
+    .from('barbearias')
+    .delete()
+    .eq('id', id)
+    .eq('nome', barbearia.nome)
+    .select('id')
+    .maybeSingle()
+  if (deleteError || !deleted) return { success: false, error: deleteError?.message ?? 'Exclusão não confirmada.' }
+
+  revalidatePath('/gestao')
+  return { success: true }
+}
