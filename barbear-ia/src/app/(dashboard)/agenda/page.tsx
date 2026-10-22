@@ -58,7 +58,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
       .order('inicio_at', { ascending: true }),
     supabase
       .from('barbeiros')
-      .select('id, nome, servicos, horarios, ativo')
+      .select('id, nome, servicos, horarios, bloqueios, horarios_fixos, ativo')
       .eq('barbearia_id', barbeariaId)
       .eq('ativo', true)
       .order('nome', { ascending: true }),
