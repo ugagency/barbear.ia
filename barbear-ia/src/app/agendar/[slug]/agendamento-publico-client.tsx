@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 
 import { gerarSlotsDoDia, type Ocupacao } from '@/app/(dashboard)/agenda/components/slots'
+import { ocupacoesFixasNoDia } from '@/lib/disponibilidade'
 import {
   buscarSlotsOcupados,
   confirmarAgendamentoPublico,
@@ -434,19 +435,7 @@ function PassoData({
           inicio: new Date(o.inicio_at),
           fim: new Date(o.fim_at),
         }))
-        // Adiciona bloqueios e horários fixos como ocupações
-        const dia = DIA_INDEX[data.getDay()]
-        const baseDate = new Date(data)
-        baseDate.setHours(0, 0, 0, 0)
-
-        for (const b of barbeiro.bloqueios ?? []) {
-          if (b.dia_semana !== dia) continue
-          ocup.push(criarOcupacao(baseDate, b.inicio, b.fim))
-        }
-        for (const h of barbeiro.horarios_fixos ?? []) {
-          if (h.dia_semana !== dia) continue
-          ocup.push(criarOcupacao(baseDate, h.inicio, h.fim))
-        }
+        ocup.push(...ocupacoesFixasNoDia(data, barbeiro.bloqueios ?? [], barbeiro.horarios_fixos ?? []))
         setOcupacoes(ocup)
       })
       .finally(() => setCarregandoSlots(false))
