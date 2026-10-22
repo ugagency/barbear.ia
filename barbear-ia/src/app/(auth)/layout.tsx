@@ -6,14 +6,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     <div className="min-h-screen bg-brand-dark flex flex-col items-center justify-center px-4 py-10">
       <Link href="/" className="mb-8 flex items-center gap-3 text-white">
         <Image
-          src="/logomarca barbear.ia.png"
+          src="/barbear-ia-logo-branca.svg"
           alt="Barbear.IA"
-          width={48}
-          height={48}
-          className="rounded-md bg-white/5"
+          width={176}
+          height={131}
+          className="h-auto w-44"
           priority
         />
-        <span className="text-2xl font-bold tracking-tight">Barbear.IA</span>
       </Link>
       {children}
       <div className="mt-7 flex items-center justify-center gap-1.5 text-xs text-white/50">
