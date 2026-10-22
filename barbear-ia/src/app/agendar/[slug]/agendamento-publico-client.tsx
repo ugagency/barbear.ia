@@ -450,6 +450,8 @@ function PassoData({
         nome: barbeiro.nome,
         servicos: barbeiro.servicos,
         horarios: barbeiro.horarios,
+        bloqueios: barbeiro.bloqueios,
+        horarios_fixos: barbeiro.horarios_fixos,
         ativo: true,
       },
       data,
