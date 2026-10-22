@@ -15,7 +15,7 @@ export interface Slot {
   disponivel: boolean
 }
 
-const STEP_MIN = 30
+const STEP_MIN = 5
 
 function parseHora(hhmm: string): { h: number; m: number } | null {
   const match = /^(\d{2}):(\d{2})$/.exec(hhmm)
@@ -38,6 +38,7 @@ export function gerarSlotsDoDia(
   date: Date,
   duracaoMin: number,
   ocupacoes: Ocupacao[],
+  passoMin: number = STEP_MIN,
 ): Slot[] {
   const horario = getHorarioDoBarbeiro(barbeiro, date)
   if (!horario) return []
@@ -57,7 +58,7 @@ export function gerarSlotsDoDia(
   for (
     let cursor = dtInicio.getTime();
     cursor + duracaoMin * 60_000 <= dtFim.getTime();
-    cursor += STEP_MIN * 60_000
+    cursor += Math.max(5, passoMin) * 60_000
   ) {
     const slotInicio = new Date(cursor)
     const slotFim = new Date(cursor + duracaoMin * 60_000)
