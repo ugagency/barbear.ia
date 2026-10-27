@@ -29,6 +29,36 @@ export function classificarFalhaIA(error: unknown) {
       mensagem:
         'O Google Gemini recusou a chave ou a permissão de acesso. Confira GOOGLE_GENERATIVE_AI_API_KEY e as permissões da API no projeto Google.',
     }
+  if (status === 400 && /schema|too many states|too complex|nesting|constraint/.test(texto))
+    return {
+      codigo: 'esquema_recusado',
+      status,
+      mensagem: 'O Google recusou o formato de extração configurado. O administrador precisa ajustar o esquema de resposta.',
+    }
+  if (status === 404 || /model.*not found|model.*not supported/.test(texto))
+    return {
+      codigo: 'modelo_indisponivel',
+      status,
+      mensagem: 'O modelo de IA configurado não está disponível para este projeto Google.',
+    }
+  if (status === 400 && /api key not valid|api_key_invalid|api key expired/.test(texto))
+    return {
+      codigo: 'chave_invalida',
+      status,
+      mensagem: 'A chave da API Google é inválida ou expirou. Atualize GOOGLE_GENERATIVE_AI_API_KEY no servidor.',
+    }
+  if (status === 400 && /location|region|country/.test(texto))
+    return {
+      codigo: 'regiao_indisponivel',
+      status,
+      mensagem: 'O Google não liberou a API para a região desta requisição.',
+    }
+  if (status === 400)
+    return {
+      codigo: 'requisicao_recusada',
+      status,
+      mensagem: 'O Google recusou a configuração da solicitação de extração. O administrador precisa verificar a integração.',
+    }
   if (status === 429)
     return {
       codigo: 'muitas_solicitacoes',
