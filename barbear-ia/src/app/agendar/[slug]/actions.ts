@@ -1,5 +1,8 @@
 'use server'
 
+import { after } from 'next/server'
+import { syncShopSafely } from '@/lib/google-calendar/sync'
+
 import { z } from 'zod'
 import { createAnonClient } from '@/lib/supabase/anon'
 
@@ -149,5 +152,6 @@ export async function confirmarAgendamentoPublico(
     }
   }
 
+  after(() => syncShopSafely(v.barbearia_id))
   return { success: true, data: { agendamento_id: (novoAg as { id: string }).id } }
 }
