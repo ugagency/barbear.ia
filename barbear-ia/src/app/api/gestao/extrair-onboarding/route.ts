@@ -49,11 +49,8 @@ export async function POST(request: Request) {
     if (!new TextDecoder().decode(bytes.slice(0, 1024)).includes('%PDF-'))
       return resposta('O arquivo não é um PDF válido.', 400)
   }
-  if (!process.env.AI_GATEWAY_API_KEY && !process.env.VERCEL_OIDC_TOKEN)
-    return resposta(
-      'A extração por IA ainda precisa ser habilitada neste ambiente. Configure a conexão de IA do projeto.',
-      503,
-    )
+  // O SDK resolve API key ou OIDC do contexto confiável da requisição Vercel.
+  // Não exigir VERCEL_OIDC_TOKEN no process.env: em Functions ele pode vir só no contexto.
   const content: UserContent = [
     {
       type: 'text',

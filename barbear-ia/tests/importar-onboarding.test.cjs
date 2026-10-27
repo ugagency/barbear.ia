@@ -136,6 +136,15 @@ Module._load = function (request, parent, isMain) {
       Output: { object: (v) => v },
       generateText: async (options) => {
         chamadas.push(options)
+        if (!process.env.AI_GATEWAY_API_KEY) {
+          try {
+            require('@vercel/oidc').getVercelOidcTokenSync()
+          } catch {
+            throw Object.assign(new Error('Credencial indisponível no teste'), {
+              statusCode: 401,
+            })
+          }
+        }
         return { output: gerado }
       },
     }
@@ -186,7 +195,7 @@ test('rejeita conteúdo vazio, texto longo e arquivos falsos ou grandes', async 
   assert.equal((await POST(request('', grande))).status, 400)
   assert.equal(chamadas.length, 0)
 })
-test('explica configuração ausente sem vazar dados ou realizar chamada de IA', async () => {
+test('retorna orientação quando o SDK não encontra nenhuma autenticação', async () => {
   autorizado = true
   chamadas = []
   const key = process.env.AI_GATEWAY_API_KEY
@@ -195,7 +204,7 @@ test('explica configuração ausente sem vazar dados ou realizar chamada de IA',
   delete process.env.VERCEL_OIDC_TOKEN
   try {
     assert.equal((await POST(request('Nome: Barbearia Teste'))).status, 503)
-    assert.equal(chamadas.length, 0)
+    assert.equal(chamadas.length, 1)
   } finally {
     if (key) process.env.AI_GATEWAY_API_KEY = key
     if (oidc) process.env.VERCEL_OIDC_TOKEN = oidc
@@ -228,5 +237,38 @@ test('texto e PDF são enviados juntos; a extração retorna rascunho sem escrev
   } finally {
     if (old) process.env.AI_GATEWAY_API_KEY = old
     else delete process.env.AI_GATEWAY_API_KEY
+  }
+})
+
+test('aceita OIDC somente no contexto Vercel, sem token no ambiente', async () => {
+  autorizado = true
+  chamadas = []
+  gerado = vazio()
+  gerado.barbearia.nome = 'Barbearia de teste'
+  const symbol = Symbol.for('@vercel/request-context')
+  const anterior = globalThis[symbol]
+  const key = process.env.AI_GATEWAY_API_KEY
+  const oidc = process.env.VERCEL_OIDC_TOKEN
+  delete process.env.AI_GATEWAY_API_KEY
+  delete process.env.VERCEL_OIDC_TOKEN
+  globalThis[symbol] = {
+    get: () => ({
+      headers: { 'x-vercel-oidc-token': 'oidc-fixture-contexto' },
+    }),
+  }
+  try {
+    assert.equal(
+      require('@vercel/oidc').getVercelOidcTokenSync(),
+      'oidc-fixture-contexto',
+    )
+    const r = await POST(request('Nome: Barbearia de teste'))
+    assert.equal(r.status, 200)
+    assert.equal((await r.json()).extracao.barbearia.nome, 'Barbearia de teste')
+    assert.equal(chamadas.length, 1)
+  } finally {
+    if (anterior === undefined) delete globalThis[symbol]
+    else globalThis[symbol] = anterior
+    if (key) process.env.AI_GATEWAY_API_KEY = key
+    if (oidc) process.env.VERCEL_OIDC_TOKEN = oidc
   }
 })
