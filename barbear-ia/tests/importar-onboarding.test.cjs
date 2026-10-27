@@ -276,3 +276,10 @@ test('diagnóstico de acesso Google não expõe a resposta bruta', () => {
   assert.equal(classificarFalhaIA({ statusCode: 402 }).codigo, 'limite_de_uso')
   assert.equal(classificarFalhaIA({ statusCode: 429 }).codigo, 'muitas_solicitacoes')
 })
+
+ test('distingue formato, modelo e parâmetros recusados sem atribuir ao PDF', () => {
+  const { classificarFalhaIA } = require('../src/lib/ai-error.ts')
+  assert.equal(classificarFalhaIA({ statusCode: 400, message: 'Schema produces too many states' }).codigo, 'esquema_recusado')
+  assert.equal(classificarFalhaIA({ statusCode: 404 }).codigo, 'modelo_indisponivel')
+  assert.equal(classificarFalhaIA({ statusCode: 400, message: 'Request contains an invalid argument.' }).codigo, 'requisicao_recusada')
+})
