@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 
 import { gerarSlotsDoDia, type Ocupacao } from '@/app/(dashboard)/agenda/components/slots'
+import { validarReserva } from '@/lib/regras-agendamento'
 import { ocupacoesFixasNoDia } from '@/lib/disponibilidade'
 import {
   buscarSlotsOcupados,
@@ -418,6 +419,12 @@ function PassoData({
   function diaDisponivel(date: Date): boolean {
     if (date < hoje) return false
     const dia = DIA_INDEX[date.getDay()]
+    const funcionamento=barbearia.config.funcionamento
+    if (funcionamento && !funcionamento.horarios[dia]) return false
+    const max=barbearia.config.regras?.horizonte_dias
+    if (max !== undefined) { const limite=new Date(hoje);limite.setDate(limite.getDate()+max);if(date>limite)return false }
+    const iso=`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`
+    if (funcionamento?.fechamentos.some(f=>iso>=f.data_inicio&&iso<=f.data_fim)) return false
     return diasDisponiveis.has(dia)
   }
 
@@ -460,8 +467,8 @@ function PassoData({
     )
     // Filtra slots no passado se for hoje
     const agora = new Date()
-    return todos.filter((s) => s.date > agora)
-  }, [data, ocupacoes, barbeiro, servico])
+    return todos.filter((s) => !validarReserva(barbearia.config, barbeiro, s.date, servico.duracao_min, agora))
+  }, [data, ocupacoes, barbeiro, servico, barbearia.config])
 
   return (
     <section>

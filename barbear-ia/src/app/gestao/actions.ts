@@ -49,8 +49,8 @@ export async function cadastrarBarbearia(input: z.infer<typeof createSchema>) {
   const { error: barbeiroError } = await supabaseAdmin.from('barbeiros').insert({
     barbearia_id: barbearia.id, nome: v.barbeiro,
     telefone: v.telefoneBarbeiro || null, ativo: true,
-    horarios: { ter: { inicio: '09:00', fim: '19:00' }, qua: { inicio: '09:00', fim: '19:00' }, qui: { inicio: '09:00', fim: '19:00' }, sex: { inicio: '09:00', fim: '19:00' }, sab: { inicio: '09:00', fim: '19:00' } },
-    servicos: [{ nome: 'Corte', preco: 40, duracao_min: 30 }],
+    horarios: {},
+    servicos: [],
   })
   revalidatePath('/gestao')
   if (barbeiroError) return { success: true, id: barbearia.id, warning: 'Barbearia criada, mas houve erro ao cadastrar o barbeiro: ' + barbeiroError.message }

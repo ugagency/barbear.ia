@@ -33,6 +33,7 @@ interface Props {
   onOpenChange: (open: boolean) => void
   barbeiro: Barbeiro | null
   onSalvo: () => void
+  saveAction?: (id: string | null, input: FormState) => Promise<{ success: boolean; error?: string }>
 }
 
 interface FormState {
@@ -53,7 +54,7 @@ const FORM_INICIAL: FormState = {
   ativo: true,
 }
 
-export function ModalBarbeiro({ open, onOpenChange, barbeiro, onSalvo }: Props) {
+export function ModalBarbeiro({ open, onOpenChange, barbeiro, onSalvo, saveAction }: Props) {
   const [form, setForm] = useState<FormState>(FORM_INICIAL)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isPending, startTransition] = useTransition()
@@ -100,7 +101,7 @@ export function ModalBarbeiro({ open, onOpenChange, barbeiro, onSalvo }: Props) 
   function validar(): boolean {
     const errs: Record<string, string> = {}
     if (form.nome.trim().length < 2) errs.nome = 'Informe o nome'
-    if (form.telefone.replace(/\D/g, '').length < 10)
+    if ((!saveAction || form.telefone) && form.telefone.replace(/\D/g, '').length < 10)
       errs.telefone = 'Telefone inválido'
     form.servicos.forEach((s, i) => {
       if (!s.nome.trim()) errs[`servico_${i}_nome`] = 'Nome'
@@ -123,7 +124,7 @@ export function ModalBarbeiro({ open, onOpenChange, barbeiro, onSalvo }: Props) 
         servicos: form.servicos,
         ativo: form.ativo,
       }
-      const result = barbeiro
+      const result = saveAction ? await saveAction(barbeiro?.id ?? null, payload) : barbeiro
         ? await atualizarBarbeiro(barbeiro.id, payload)
         : await criarBarbeiro(payload)
       if (!result.success) {
@@ -163,7 +164,7 @@ export function ModalBarbeiro({ open, onOpenChange, barbeiro, onSalvo }: Props) 
               )}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="b-tel">WhatsApp</Label>
+              <Label htmlFor="b-tel">WhatsApp{saveAction ? " (opcional)" : ""}</Label>
               <Input
                 id="b-tel"
                 value={form.telefone}
@@ -247,7 +248,7 @@ export function ModalBarbeiro({ open, onOpenChange, barbeiro, onSalvo }: Props) 
                     <Input
                       type="number"
                       min="0"
-                      step="1"
+                      step="0.01"
                       placeholder="Preço"
                       value={s.preco || ''}
                       onChange={(e) =>

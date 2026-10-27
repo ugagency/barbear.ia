@@ -18,6 +18,7 @@ import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import { atualizarHorariosBarbeiro } from '../actions'
+import type { AtualizarHorariosInput } from '../actions'
 import { DIAS_SEMANA } from '@/lib/constants'
 import type { Barbeiro, Bloqueio, HorarioDia, HorarioFixo } from '@/types'
 
@@ -60,9 +61,10 @@ function buildState(barbeiro: Barbeiro): HorariosState {
 interface Props {
   barbeiros: Barbeiro[]
   onSaved: () => void
+  saveAction?: (id: string, input: AtualizarHorariosInput) => Promise<{ success: boolean; error?: string }>
 }
 
-export function AbaHorarios({ barbeiros, onSaved }: Props) {
+export function AbaHorarios({ barbeiros, onSaved, saveAction = atualizarHorariosBarbeiro }: Props) {
   const [barbeiroId, setBarbeiroId] = useState<string>(barbeiros[0]?.id ?? '')
   const barbeiro = useMemo(
     () => barbeiros.find((b) => b.id === barbeiroId) ?? null,
@@ -149,7 +151,7 @@ export function AbaHorarios({ barbeiros, onSaved }: Props) {
       return
     }
     startTransition(async () => {
-      const result = await atualizarHorariosBarbeiro(barbeiro.id, {
+      const result = await saveAction(barbeiro.id, {
         horarios: state.horarios,
         bloqueios: state.bloqueios,
         horarios_fixos: state.horarios_fixos,

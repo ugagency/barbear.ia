@@ -25,7 +25,7 @@ export function NovaBarbeariaForm() {
       {([['nome','Nome da barbearia','text',true],['telefone','WhatsApp principal','tel',true],['email','Email de contato','email',false],['barbeiro','Primeiro barbeiro','text',true],['telefoneBarbeiro','WhatsApp do barbeiro','tel',false]] as const).map(([name,label,type,required]) => (
         <label key={name} className="block space-y-1.5 text-sm font-medium text-slate-700">{label}<input name={name} type={type} required={required} className="w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-slate-800" /></label>
       ))}
-      <p className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">Agenda e serviço inicial serão criados com valores padrão, ajustáveis no painel da barbearia.</p>
+      <p className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">Após criar, configure o funcionamento, os profissionais, os serviços, os bloqueios e as regras aqui na gestão antes de compartilhar a agenda.</p>
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
       <button disabled={pending} className="w-full rounded-lg bg-slate-900 px-4 py-3 font-semibold text-white disabled:opacity-50">{pending ? 'Cadastrando...' : 'Cadastrar e continuar'}</button>
     </form>
