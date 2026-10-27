@@ -29,6 +29,12 @@ export function classificarFalhaIA(error: unknown) {
       mensagem:
         'O Google Gemini recusou a chave ou a permissão de acesso. Confira GOOGLE_GENERATIVE_AI_API_KEY e as permissões da API no projeto Google.',
     }
+  if (status === 503 || status === 504)
+    return {
+      codigo: 'provedor_indisponivel',
+      status,
+      mensagem: 'O Google Gemini está temporariamente indisponível. Tente novamente em alguns instantes. Nenhum dado foi salvo.',
+    }
   if (status === 400 && /schema|too many states|too complex|nesting|constraint/.test(texto))
     return {
       codigo: 'esquema_recusado',

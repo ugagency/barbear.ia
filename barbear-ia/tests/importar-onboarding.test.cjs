@@ -229,7 +229,9 @@ test('texto e PDF são enviados juntos; a extração retorna rascunho sem escrev
       'application/pdf',
     )
     assert.match(chamadas[0].messages[0].content[0].text, /Correção/)
-    assert.equal(chamadas[0].maxRetries, 0)
+    assert.equal(chamadas[0].maxRetries, 1)
+    assert.equal(chamadas[0].providerOptions.google.structuredOutputs, false)
+    assert.match(chamadas[0].system, /properties/)
   } finally {
     if (old) process.env.GOOGLE_GENERATIVE_AI_API_KEY = old
     else delete process.env.GOOGLE_GENERATIVE_AI_API_KEY
@@ -254,6 +256,7 @@ test('provedor Google envia texto e PDF diretamente, sem chamar o Gateway', asyn
   })
   const result = await generateText({
     model: provider('gemini-3.8-flash'),
+    providerOptions: { google: { structuredOutputs: false } },
     messages: [{ role: 'user', content: [
       { type: 'text', text: 'Nome: Teste' },
       { type: 'file', mediaType: 'application/pdf', data: new TextEncoder().encode('%PDF-1.7 fixture') },
@@ -263,6 +266,8 @@ test('provedor Google envia texto e PDF diretamente, sem chamar o Gateway', asyn
   })
   assert.equal(new URL(destino).hostname, 'generativelanguage.googleapis.com')
   assert.equal(apiKey, 'chave-de-teste')
+  assert.equal(envio.generationConfig.responseMimeType, 'application/json')
+  assert.equal(envio.generationConfig.responseJsonSchema, undefined)
   assert.equal(envio.contents[0].parts[1].inlineData.mimeType, 'application/pdf')
   assert.deepEqual(result.output, vazio())
 })
@@ -282,4 +287,11 @@ test('diagnóstico de acesso Google não expõe a resposta bruta', () => {
   assert.equal(classificarFalhaIA({ statusCode: 400, message: 'Schema produces too many states' }).codigo, 'esquema_recusado')
   assert.equal(classificarFalhaIA({ statusCode: 404 }).codigo, 'modelo_indisponivel')
   assert.equal(classificarFalhaIA({ statusCode: 400, message: 'Request contains an invalid argument.' }).codigo, 'requisicao_recusada')
+})
+
+test('indisponibilidade do Google não é apresentada como falha no texto ou PDF', () => {
+  const { classificarFalhaIA } = require('../src/lib/ai-error.ts')
+  const falha = classificarFalhaIA({ statusCode: 503, message: 'servico indisponivel' })
+  assert.equal(falha.codigo, 'provedor_indisponivel')
+  assert.match(falha.mensagem, /temporariamente indisponível/)
 })

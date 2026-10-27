@@ -1,5 +1,6 @@
 import { generateText, Output } from 'ai'
 import { google } from '@ai-sdk/google'
+import { z } from 'zod'
 import type { UserContent } from 'ai'
 import { classificarFalhaIA } from '@/lib/ai-error'
 import { getPlatformAdmin } from '@/lib/platform-admin'
@@ -67,11 +68,14 @@ export async function POST(request: Request) {
   try {
     const { output } = await generateText({
       model: google((process.env.ONBOARDING_AI_MODEL || 'gemini-3.8-flash').replace(/^google\//, '')),
-      system: INSTRUCAO_EXTRACAO,
+      // O esquema completo de onboarding pode ultrapassar a complexidade aceita pelo Google.
+      // JSON continua obrigatório; o SDK e safeParse validam o resultado integralmente.
+      providerOptions: { google: { structuredOutputs: false } },
+      system: `${INSTRUCAO_EXTRACAO}\nResponda somente com um objeto JSON que siga este esquema:\n${JSON.stringify(z.toJSONSchema(extracaoSchema))}`,
       messages: [{ role: 'user', content }],
       output: Output.object({ schema: extracaoSchema }),
       maxOutputTokens: 12000,
-      maxRetries: 0,
+      maxRetries: 1,
       abortSignal: AbortSignal.any([
         request.signal,
         AbortSignal.timeout(110000),
@@ -99,7 +103,7 @@ export async function POST(request: Request) {
       falha.mensagem,
       falha.status === 429
         ? 429
-        : [401, 402, 403].includes(falha.status)
+        : [401, 402, 403, 503, 504].includes(falha.status)
           ? 503
           : 502,
     )
