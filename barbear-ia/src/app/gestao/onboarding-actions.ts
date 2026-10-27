@@ -233,3 +233,52 @@ export async function uploadLogoAdmin(id: string, formData: FormData) {
   revalidatePath('/', 'layout')
   return { success: true }
 }
+
+// Uma única escrita cadastra/atualiza os dados e a agenda revisados do profissional.
+export async function salvarProfissionalImportado(
+  barbeariaId: string,
+  profissionalId: string | null,
+  input: ProfissionalInput,
+  agenda: AgendaInput,
+) {
+  if (!(await getPlatformAdmin()))
+    return { success: false, error: 'Acesso negado.' }
+  const p = profissionalSchema.safeParse(input)
+  const a = agendaSchema.safeParse(agenda)
+  if (
+    !z.uuid().safeParse(barbeariaId).success ||
+    (profissionalId && !z.uuid().safeParse(profissionalId).success) ||
+    !p.success ||
+    !a.success
+  )
+    return {
+      success: false,
+      error:
+        p.error?.issues[0]?.message ??
+        a.error?.issues[0]?.message ??
+        'Dados inválidos.',
+    }
+  const values = {
+    ...p.data,
+    ...a.data,
+    telefone: p.data.telefone.replace(/\D/g, '') || null,
+    calendar_id: p.data.calendar_id || null,
+  }
+  const query = profissionalId
+    ? supabaseAdmin
+        .from('barbeiros')
+        .update(values)
+        .eq('id', profissionalId)
+        .eq('barbearia_id', barbeariaId)
+    : supabaseAdmin
+        .from('barbeiros')
+        .insert({ ...values, barbearia_id: barbeariaId })
+  const { data, error } = await query.select('id').maybeSingle()
+  if (error || !data)
+    return {
+      success: false,
+      error: error?.message ?? 'Profissional não encontrado nesta barbearia.',
+    }
+  revalidar(barbeariaId)
+  return { success: true }
+}

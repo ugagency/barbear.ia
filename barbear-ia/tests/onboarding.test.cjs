@@ -373,3 +373,65 @@ test('dados internos são gravados somente na tabela protegida', async () => {
   assert.equal(queries[0].values.secao, 'perfil')
   assert.equal(queries[0].values.dados.responsavel, 'Leonardo')
 })
+
+test('importação revisada salva profissional e agenda em uma única escrita e no tenant selecionado', async () => {
+  autorizado = true
+  queries = []
+  const r = await actions.salvarProfissionalImportado(
+    shopId,
+    profId,
+    {
+      nome: 'Profissional',
+      telefone: '',
+      calendar_id: 'agenda-existente',
+      ativo: true,
+      servicos: [{ nome: 'Corte', preco: 50, duracao_min: 60 }],
+    },
+    {
+      horarios: { ter: { inicio: '17:30', fim: '20:30' } },
+      bloqueios: [],
+      horarios_fixos: [],
+    },
+  )
+  assert.equal(r.success, true)
+  assert.equal(queries.length, 1)
+  assert.equal(queries[0].filters.id, profId)
+  assert.equal(queries[0].filters.barbearia_id, shopId)
+  assert.deepEqual(queries[0].values.horarios, {
+    ter: { inicio: '17:30', fim: '20:30' },
+  })
+  assert.equal(queries[0].values.calendar_id, 'agenda-existente')
+})
+test('importação não escreve preço ou duração ausentes nem horário invertido', async () => {
+  autorizado = true
+  queries = []
+  for (const servico of [
+    { nome: 'Corte', preco: NaN, duracao_min: 60 },
+    { nome: 'Corte', preco: 50, duracao_min: 0 },
+  ]) {
+    const r = await actions.salvarProfissionalImportado(
+      shopId,
+      null,
+      { nome: 'Profissional', telefone: '', ativo: true, servicos: [servico] },
+      { horarios: {}, bloqueios: [], horarios_fixos: [] },
+    )
+    assert.equal(r.success, false)
+  }
+  const r = await actions.salvarProfissionalImportado(
+    shopId,
+    null,
+    {
+      nome: 'Profissional',
+      telefone: '',
+      ativo: true,
+      servicos: [{ nome: 'Corte', preco: 50, duracao_min: 60 }],
+    },
+    {
+      horarios: { ter: { inicio: '20:30', fim: '17:30' } },
+      bloqueios: [],
+      horarios_fixos: [],
+    },
+  )
+  assert.equal(r.success, false)
+  assert.equal(queries.length, 0)
+})
