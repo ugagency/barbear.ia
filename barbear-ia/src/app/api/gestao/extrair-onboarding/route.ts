@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     content.push({ type: 'file', mediaType: 'application/pdf', data: bytes })
   try {
     const { output } = await generateText({
-      model: google((process.env.ONBOARDING_AI_MODEL || 'gemini-2.5-flash').replace(/^google\//, '')),
+      model: google((process.env.ONBOARDING_AI_MODEL || 'gemini-3.8-flash').replace(/^google\//, '')),
       system: INSTRUCAO_EXTRACAO,
       messages: [{ role: 'user', content }],
       output: Output.object({ schema: extracaoSchema }),
