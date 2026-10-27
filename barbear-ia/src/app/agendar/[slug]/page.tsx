@@ -1,3 +1,4 @@
+import { configPublica } from '@/lib/regras-agendamento'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { createAnonClient } from '@/lib/supabase/anon'
@@ -9,6 +10,7 @@ export interface BarbeariaPublica {
   nome: string
   slug: string
   logo_url: string | null
+  config: ReturnType<typeof configPublica>
 }
 
 export interface BarbeiroPublico {
@@ -20,15 +22,22 @@ export interface BarbeiroPublico {
   horarios_fixos: HorarioFixo[]
 }
 
-async function getBarbeariaBySlug(slug: string): Promise<BarbeariaPublica | null> {
+async function getBarbeariaBySlug(
+  slug: string,
+): Promise<BarbeariaPublica | null> {
   const supabase = createAnonClient()
   const { data } = await supabase
     .from('barbearias')
-    .select('id, nome, slug, logo_url')
+    .select('id, nome, slug, logo_url, config')
     .eq('slug', slug)
     .eq('plano_status', 'ativo')
     .maybeSingle()
-  return (data as BarbeariaPublica | null) ?? null
+  return data
+    ? ({
+        ...data,
+        config: configPublica(data.config ?? {}),
+      } as BarbeariaPublica)
+    : null
 }
 
 export async function generateMetadata({
@@ -73,13 +82,15 @@ export default async function AgendarPage({
           <div className="text-4xl">💈</div>
           <h1 className="text-xl font-bold text-brand">{barbearia.nome}</h1>
           <p className="text-sm text-slate-600">
-            Esta barbearia ainda não tem barbeiros disponíveis para
-            agendamento online. Tente novamente mais tarde.
+            Esta barbearia ainda não tem barbeiros disponíveis para agendamento
+            online. Tente novamente mais tarde.
           </p>
         </div>
       </div>
     )
   }
 
-  return <AgendamentoPublicoClient barbearia={barbearia} barbeiros={barbeiros} />
+  return (
+    <AgendamentoPublicoClient barbearia={barbearia} barbeiros={barbeiros} />
+  )
 }

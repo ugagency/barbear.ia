@@ -1,11 +1,12 @@
 'use server'
 
 import { z } from 'zod'
+import { validarReserva } from '@/lib/regras-agendamento'
+import type { Servico } from '@/types'
 import { createAnonClient } from '@/lib/supabase/anon'
 
 type ActionResult<T = undefined> =
-  | { success: true; data: T }
-  | { success: false; error: string }
+  { success: true; data: T } | { success: false; error: string }
 
 const confirmarSchema = z.object({
   barbearia_id: z.string().uuid(),
@@ -70,7 +71,45 @@ export async function confirmarAgendamentoPublico(
   if (inicio <= new Date()) {
     return { success: false, error: 'Escolha um horário futuro.' }
   }
-  const fim = new Date(inicio.getTime() + v.duracao_min * 60_000)
+  const [
+    { data: barbearia, error: barbeariaErr },
+    { data: barbeiro, error: barbeiroErr },
+  ] = await Promise.all([
+    supabase
+      .from('barbearias')
+      .select('config')
+      .eq('id', v.barbearia_id)
+      .eq('plano_status', 'ativo')
+      .maybeSingle(),
+    supabase
+      .from('barbeiros')
+      .select('servicos,horarios,bloqueios,horarios_fixos')
+      .eq('id', v.barbeiro_id)
+      .eq('barbearia_id', v.barbearia_id)
+      .eq('ativo', true)
+      .maybeSingle(),
+  ])
+  if (barbeariaErr || barbeiroErr || !barbearia || !barbeiro)
+    return { success: false, error: 'Barbearia ou profissional indisponível.' }
+  const servico = (barbeiro.servicos as Servico[]).find(
+    (s) =>
+      s.nome === v.servico &&
+      s.preco === v.preco &&
+      s.duracao_min === v.duracao_min,
+  )
+  if (!servico)
+    return {
+      success: false,
+      error: 'O serviço foi alterado. Atualize a página e escolha novamente.',
+    }
+  const indisponivel = validarReserva(
+    barbearia.config ?? {},
+    barbeiro,
+    inicio,
+    servico.duracao_min,
+  )
+  if (indisponivel) return { success: false, error: indisponivel }
+  const fim = new Date(inicio.getTime() + servico.duracao_min * 60_000)
 
   // Double-check de disponibilidade — busca conflitos
   const { data: conflitos, error: conflitosErr } = await supabase
@@ -135,7 +174,9 @@ export async function confirmarAgendamentoPublico(
       duracao_min: v.duracao_min,
       inicio_at: inicio.toISOString(),
       fim_at: fim.toISOString(),
-      status: 'agendado',
+      status: barbearia.config?.regras?.confirmacao_automatica
+        ? 'confirmado'
+        : 'agendado',
       forma_pagamento: 'a_definir',
       criado_por: 'cliente_web',
     })
@@ -149,5 +190,8 @@ export async function confirmarAgendamentoPublico(
     }
   }
 
-  return { success: true, data: { agendamento_id: (novoAg as { id: string }).id } }
+  return {
+    success: true,
+    data: { agendamento_id: (novoAg as { id: string }).id },
+  }
 }
