@@ -312,3 +312,11 @@ test('rascunho preserva dados válidos e marca campos opcionais inválidos como 
   assert.match(r.data.pendencias.join(' '), /whatsapp_responsavel/)
   assert.equal(validarRascunhoExtraido({ foo: 'bar' }).success, false)
 })
+
+test('preserva o status Google encapsulado pelo RetryError do SDK', () => {
+  const { classificarFalhaIA } = require('../src/lib/ai-error.ts')
+  const falha = classificarFalhaIA({ name: 'AI_RetryError', lastError: { statusCode: 503, responseBody: 'servico indisponivel' } })
+  assert.equal(falha.status, 503)
+  assert.equal(falha.codigo, 'provedor_indisponivel')
+  assert.equal(classificarFalhaIA({ lastError: { statusCode: 429 } }).codigo, 'muitas_solicitacoes')
+})
