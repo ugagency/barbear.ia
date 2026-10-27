@@ -1,5 +1,5 @@
 // Classifica falhas operacionais sem expor a mensagem bruta, credenciais ou anexos.
-export function classificarFalhaGateway(error: unknown) {
+export function classificarFalhaIA(error: unknown) {
   const textos: string[] = []
   let status = 0
   let atual = error
@@ -12,13 +12,6 @@ export function classificarFalhaGateway(error: unknown) {
     atual = e.cause
   }
   const texto = textos.join(' ').toLowerCase()
-  if (texto.includes('customer_verification_required'))
-    return {
-      codigo: 'verificacao_da_conta',
-      status,
-      mensagem:
-        'A Vercel exige verificar a conta do AI Gateway antes de liberar a extração. Conclua a verificação no painel de AI Gateway da equipe.',
-    }
   if (
     texto.includes('insufficient_funds') ||
     texto.includes('quota_for_entity_exceeded') ||
@@ -29,29 +22,12 @@ export function classificarFalhaGateway(error: unknown) {
       status,
       mensagem: 'A conexão de IA está sem saldo ou atingiu seu limite de uso.',
     }
-  if (
-    texto.includes('no authentication provided') ||
-    texto.includes('header is missing')
-  )
-    return {
-      codigo: 'autenticacao_ausente',
-      status,
-      mensagem:
-        'A função não recebeu autenticação de IA. Habilite OIDC no projeto da Vercel e publique novamente, ou configure uma chave do AI Gateway no servidor.',
-    }
-  if (texto.includes('invalid oidc token'))
-    return {
-      codigo: 'oidc_recusado',
-      status,
-      mensagem:
-        'O AI Gateway recusou o token OIDC do projeto. Confira a equipe e a configuração de OIDC na Vercel.',
-    }
-  if (status === 401 || status === 403)
+  if (status === 401 || status === 403 || texto.includes('api_key_invalid'))
     return {
       codigo: 'autenticacao_recusada',
       status,
       mensagem:
-        'O AI Gateway recusou a autenticação do projeto. Confira a autorização da equipe no painel da Vercel.',
+        'O Google Gemini recusou a chave ou a permissão de acesso. Confira GOOGLE_GENERATIVE_AI_API_KEY e as permissões da API no projeto Google.',
     }
   if (status === 429)
     return {
