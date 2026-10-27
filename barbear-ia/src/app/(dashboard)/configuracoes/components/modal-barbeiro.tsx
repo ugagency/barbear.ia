@@ -33,7 +33,12 @@ interface Props {
   onOpenChange: (open: boolean) => void
   barbeiro: Barbeiro | null
   onSalvo: () => void
-  saveAction?: (id: string | null, input: FormState) => Promise<{ success: boolean; error?: string }>
+  title?: string
+  saveLabel?: string
+  saveAction?: (
+    id: string | null,
+    input: FormState,
+  ) => Promise<{ success: boolean; error?: string }>
 }
 
 interface FormState {
@@ -54,7 +59,15 @@ const FORM_INICIAL: FormState = {
   ativo: true,
 }
 
-export function ModalBarbeiro({ open, onOpenChange, barbeiro, onSalvo, saveAction }: Props) {
+export function ModalBarbeiro({
+  open,
+  onOpenChange,
+  barbeiro,
+  onSalvo,
+  saveAction,
+  title,
+  saveLabel,
+}: Props) {
   const [form, setForm] = useState<FormState>(FORM_INICIAL)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isPending, startTransition] = useTransition()
@@ -66,10 +79,9 @@ export function ModalBarbeiro({ open, onOpenChange, barbeiro, onSalvo, saveActio
         nome: barbeiro.nome,
         telefone: barbeiro.telefone ?? '',
         calendar_id: barbeiro.calendar_id ?? '',
-        servicos:
-          (barbeiro.servicos as Servico[] | null)?.length
-            ? (barbeiro.servicos as Servico[])
-            : [SERVICO_PADRAO],
+        servicos: (barbeiro.servicos as Servico[] | null)?.length
+          ? (barbeiro.servicos as Servico[])
+          : [SERVICO_PADRAO],
         ativo: barbeiro.ativo,
       })
     } else {
@@ -94,18 +106,25 @@ export function ModalBarbeiro({ open, onOpenChange, barbeiro, onSalvo, saveActio
   function removeServico(idx: number) {
     setForm((s) => ({
       ...s,
-      servicos: s.servicos.length > 1 ? s.servicos.filter((_, i) => i !== idx) : s.servicos,
+      servicos:
+        s.servicos.length > 1
+          ? s.servicos.filter((_, i) => i !== idx)
+          : s.servicos,
     }))
   }
 
   function validar(): boolean {
     const errs: Record<string, string> = {}
     if (form.nome.trim().length < 2) errs.nome = 'Informe o nome'
-    if ((!saveAction || form.telefone) && form.telefone.replace(/\D/g, '').length < 10)
+    if (
+      (!saveAction || form.telefone) &&
+      form.telefone.replace(/\D/g, '').length < 10
+    )
       errs.telefone = 'Telefone inválido'
     form.servicos.forEach((s, i) => {
       if (!s.nome.trim()) errs[`servico_${i}_nome`] = 'Nome'
-      if (s.preco < 0) errs[`servico_${i}_preco`] = 'Preço'
+      if (!Number.isFinite(s.preco) || s.preco < 0)
+        errs[`servico_${i}_preco`] = 'Preço'
       if (s.duracao_min < 5) errs[`servico_${i}_duracao`] = 'Duração'
     })
     setErrors(errs)
@@ -124,9 +143,11 @@ export function ModalBarbeiro({ open, onOpenChange, barbeiro, onSalvo, saveActio
         servicos: form.servicos,
         ativo: form.ativo,
       }
-      const result = saveAction ? await saveAction(barbeiro?.id ?? null, payload) : barbeiro
-        ? await atualizarBarbeiro(barbeiro.id, payload)
-        : await criarBarbeiro(payload)
+      const result = saveAction
+        ? await saveAction(barbeiro?.id ?? null, payload)
+        : barbeiro
+          ? await atualizarBarbeiro(barbeiro.id, payload)
+          : await criarBarbeiro(payload)
       if (!result.success) {
         toast.error(result.error)
         return
@@ -142,7 +163,7 @@ export function ModalBarbeiro({ open, onOpenChange, barbeiro, onSalvo, saveActio
       <DialogContent className="sm:max-w-2xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-brand">
-            {barbeiro ? 'Editar barbeiro' : 'Novo barbeiro'}
+            {title ?? (barbeiro ? 'Editar barbeiro' : 'Novo barbeiro')}
           </DialogTitle>
           <DialogDescription>
             Dados do profissional e serviços oferecidos.
@@ -164,7 +185,9 @@ export function ModalBarbeiro({ open, onOpenChange, barbeiro, onSalvo, saveActio
               )}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="b-tel">WhatsApp{saveAction ? " (opcional)" : ""}</Label>
+              <Label htmlFor="b-tel">
+                WhatsApp{saveAction ? ' (opcional)' : ''}
+              </Label>
               <Input
                 id="b-tel"
                 value={form.telefone}
@@ -183,7 +206,9 @@ export function ModalBarbeiro({ open, onOpenChange, barbeiro, onSalvo, saveActio
             <Input
               id="b-calendar"
               value={form.calendar_id}
-              onChange={(e) => setForm({ ...form, calendar_id: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, calendar_id: e.target.value })
+              }
               placeholder="seu-id@group.calendar.google.com"
               className="font-mono text-xs"
             />
@@ -240,7 +265,9 @@ export function ModalBarbeiro({ open, onOpenChange, barbeiro, onSalvo, saveActio
                     <Input
                       placeholder="Nome do serviço"
                       value={s.nome}
-                      onChange={(e) => setServico(idx, { nome: e.target.value })}
+                      onChange={(e) =>
+                        setServico(idx, { nome: e.target.value })
+                      }
                       aria-invalid={!!errors[`servico_${idx}_nome`]}
                     />
                   </div>
@@ -313,6 +340,8 @@ export function ModalBarbeiro({ open, onOpenChange, barbeiro, onSalvo, saveActio
                 <>
                   <Loader2 className="animate-spin" /> Salvando...
                 </>
+              ) : saveLabel ? (
+                saveLabel
               ) : barbeiro ? (
                 'Salvar alterações'
               ) : (

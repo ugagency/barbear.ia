@@ -34,3 +34,13 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+### Importar onboarding por texto ou PDF
+
+Na gestão interna, abra uma barbearia e use **Importar respostas do onboarding**. Aceita texto (até 60 mil caracteres), PDF (até 3 MB) ou ambos. A extração produz um rascunho com pendências e trechos de referência. Os botões de salvar de cada seção continuam necessários. Profissionais identificados são revisados e salvos individualmente, com seleção explícita antes de substituir alguém já cadastrado.
+
+A API `/api/gestao/extrair-onboarding` exige `platform_admins`. Não grava o texto original ou o PDF. Usa AI SDK 7 (Node.js 22+) e AI Gateway. No Vercel, autentica com `VERCEL_OIDC_TOKEN` do deployment; fora dele, configure `AI_GATEWAY_API_KEY` somente no servidor. O Gateway precisa estar autorizado e com créditos disponíveis. A interface informa falhas de configuração e de limite de uso.
+
+O modelo padrão é `google/gemini-2.5-flash`, verificado no catálogo do Gateway com suporte a texto, PDF e saída estruturada. `ONBOARDING_AI_MODEL` permite escolher outro modelo que suporte esses recursos. Não é necessário alterar o banco para esta função. Campos ausentes ficam pendentes; dados existentes são preservados por padrão. Sem credenciais locais, testes usam respostas simuladas do modelo, sem chamada paga.
+
+Validação: `node --test tests/*.test.cjs`, `npx tsc --noEmit`, `npm run build`.

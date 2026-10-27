@@ -5,11 +5,7 @@ import { getPlatformAdmin } from '@/lib/platform-admin'
 import { redirect } from 'next/navigation'
 import { OnboardingAdmin } from './onboarding'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import {
-  EditarBarbeariaForm,
-  ConvidarResponsavelForm,
-  ExcluirBarbeariaForm,
-} from './forms'
+import { ConvidarResponsavelForm, ExcluirBarbeariaForm } from './forms'
 
 export default async function Detalhe({
   params,
@@ -78,6 +74,7 @@ export default async function Detalhe({
       </div>
       <OnboardingAdmin
         id={b.id}
+        barbearia={b}
         config={{
           ...b.config,
           ...Object.fromEntries(
@@ -86,8 +83,7 @@ export default async function Detalhe({
         }}
         barbeiros={barbeiros ?? []}
       />
-      <div className="grid gap-6 lg:grid-cols-2">
-        <EditarBarbeariaForm barbearia={b} />
+      <div className="max-w-2xl">
         <div className="space-y-5">
           <ConvidarResponsavelForm id={b.id} />
           <section className="rounded-xl border border-slate-200 bg-white p-5">

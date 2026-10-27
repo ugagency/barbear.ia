@@ -2,6 +2,17 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import {
+  ImportarOnboarding,
+  ProfissionaisImportados,
+} from './importar-onboarding'
+import { EditarBarbeariaForm } from './forms'
+import {
+  normalizarExtracao,
+  mesclarImportacao,
+  mesclarHorarios,
+} from '@/lib/onboarding-import'
+import type { ExtracaoOnboarding } from '@/lib/onboarding-import'
 import { toast } from 'sonner'
 import { AbaHorarios } from '@/app/(dashboard)/configuracoes/components/aba-horarios'
 import { ModalBarbeiro } from '@/app/(dashboard)/configuracoes/components/modal-barbeiro'
@@ -181,7 +192,7 @@ function FormSecao({
   )
 }
 
-export function OnboardingAdmin({
+function OnboardingEditor({
   id,
   config,
   barbeiros,
@@ -790,5 +801,88 @@ function FuncionamentoForm({
         multiline
       />
     </FormSecao>
+  )
+}
+
+type DadosBasicos = Parameters<typeof EditarBarbeariaForm>[0]['barbearia']
+type PropsOnboarding = {
+  id: string
+  config: OnboardingConfig & Record<string, unknown>
+  barbeiros: Barbeiro[]
+  barbearia: DadosBasicos
+}
+export function OnboardingAdmin(props: PropsOnboarding) {
+  const [importacao, setImportacao] = useState<{
+    dados: ExtracaoOnboarding
+    substituir: boolean
+    versao: number
+  } | null>(null)
+  let config = props.config
+  let basicos = props.barbearia
+  if (importacao) {
+    const patch = normalizarExtracao(importacao.dados)
+    config = mesclarImportacao(
+      props.config,
+      patch.config,
+      importacao.substituir,
+    )
+    basicos = mesclarImportacao(
+      props.barbearia,
+      patch.barbearia,
+      importacao.substituir,
+    )
+    if (importacao.dados.funcionamento.horarios !== null) {
+      config = {
+        ...config,
+        funcionamento: {
+          ...config.funcionamento!,
+          horarios: mesclarHorarios(
+            props.config.funcionamento?.horarios ?? {},
+            importacao.dados.funcionamento.horarios,
+            importacao.substituir,
+          ),
+        },
+      }
+    }
+  }
+  return (
+    <div className="space-y-6">
+      <ImportarOnboarding
+        onAplicar={(dados, substituir) =>
+          setImportacao((old) => ({
+            dados,
+            substituir,
+            versao: (old?.versao ?? 0) + 1,
+          }))
+        }
+      />
+      {importacao && (
+        <p
+          role="status"
+          className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900"
+        >
+          Rascunho preenchido. Confira cada seção e salve os dados que deseja
+          cadastrar. Campos sem resposta permanecem para preenchimento manual.
+        </p>
+      )}
+      <EditarBarbeariaForm
+        key={`basicos-${importacao?.versao ?? 0}`}
+        barbearia={basicos}
+      />
+      {importacao && importacao.dados.profissionais.length > 0 && (
+        <ProfissionaisImportados
+          key={`profissionais-${importacao.versao}`}
+          id={props.id}
+          profissionais={importacao.dados.profissionais}
+          existentes={props.barbeiros}
+        />
+      )}
+      <OnboardingEditor
+        key={`editor-${importacao?.versao ?? 0}`}
+        id={props.id}
+        config={config}
+        barbeiros={props.barbeiros}
+      />
+    </div>
   )
 }
