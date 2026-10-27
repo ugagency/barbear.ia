@@ -95,6 +95,28 @@ export const extracaoSchema = z.object({
     )
     .max(100),
 })
+// Campos opcionais ausentes ou malformados viram pendências, nunca valores inventados.
+export function validarRascunhoExtraido(input: unknown) {
+  if (!input || typeof input !== 'object' || Array.isArray(input))
+    return extracaoSchema.safeParse(input)
+  const dados = structuredClone(input) as Record<string, unknown>
+  const pendencias = Array.isArray(dados.pendencias) ? dados.pendencias : []
+  for (const secao of ['barbearia', 'perfil', 'funcionamento', 'regras', 'atendimento'] as const) {
+    const valor = dados[secao]
+    if (!valor || typeof valor !== 'object' || Array.isArray(valor)) continue
+    const campos = valor as Record<string, unknown>
+    for (const [campo, schema] of Object.entries(extracaoSchema.shape[secao].shape)) {
+      if (!schema.safeParse(campos[campo]).success && schema.safeParse(null).success) {
+        if (campos[campo] !== undefined)
+          pendencias.push(`Revise ${secao}.${campo}: a resposta extraída não tem um formato válido.`)
+        campos[campo] = null
+      }
+    }
+  }
+  dados.pendencias = pendencias
+  return extracaoSchema.safeParse(dados)
+}
+
 export type ExtracaoOnboarding = z.infer<typeof extracaoSchema>
 export type ProfissionalExtraido = ExtracaoOnboarding['profissionais'][number]
 export const MAX_PDF_BYTES = 3 * 1024 * 1024
