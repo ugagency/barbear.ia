@@ -1,5 +1,8 @@
 'use server'
 
+import { after } from 'next/server'
+import { syncShopSafely } from '@/lib/google-calendar/sync'
+
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import type { FormaPagamento, StatusAgendamento } from '@/types'
@@ -112,6 +115,7 @@ export async function criarAgendamento(
     return { success: false, error: error?.message ?? 'Erro ao criar agendamento.' }
   }
 
+  after(() => syncShopSafely(ctx.barbeariaId))
   revalidatePath('/agenda')
   return { success: true, data: { id: data.id as string } }
 }
@@ -162,6 +166,7 @@ export async function editarAgendamento(
     .eq('id', id)
 
   if (error) return { success: false, error: error.message }
+  after(() => syncShopSafely(ctx.barbeariaId))
   revalidatePath('/agenda')
   return { success: true }
 }
@@ -210,6 +215,7 @@ export async function concluirAgendamento(id: string): Promise<ActionResult> {
     })
     .eq('id', ag.cliente_id as string)
 
+  after(() => syncShopSafely(ctx.barbeariaId))
   revalidatePath('/agenda')
   return { success: true }
 }

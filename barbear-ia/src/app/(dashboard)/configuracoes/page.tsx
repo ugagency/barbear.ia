@@ -3,7 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { ConfiguracoesClient } from './configuracoes-client'
 import type { Barbearia, Barbeiro } from '@/types'
 
-export default async function ConfiguracoesPage() {
+export default async function ConfiguracoesPage({ searchParams }: { searchParams: Promise<{ google_calendar?: string }> }) {
+  const outcome = (await searchParams).google_calendar
   const supabase = await createClient()
   const {
     data: { user },
@@ -30,9 +31,14 @@ export default async function ConfiguracoesPage() {
   if (!barbeariaRes.data) redirect('/onboarding')
 
   return (
+    <>
+    {outcome && <div className="mb-4 rounded-lg border border-brand-100 bg-white p-4 text-sm" role="status">
+      {outcome === 'conectado' ? 'Google Agenda conectado. Acesse Barbeiros → Editar para acompanhar a sincronização.' : 'Não foi possível conectar o Google Agenda. Tente novamente e autorize o acesso à agenda. Se persistir, entre em contato com a equipe Spictur.'}
+    </div>}
     <ConfiguracoesClient
       barbearia={barbeariaRes.data as Barbearia}
       barbeiros={(barbeirosRes.data ?? []) as Barbeiro[]}
     />
+    </>
   )
 }

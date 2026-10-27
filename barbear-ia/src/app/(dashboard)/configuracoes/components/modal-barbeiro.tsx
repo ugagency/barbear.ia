@@ -24,6 +24,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { atualizarBarbeiro, criarBarbeiro } from '../actions'
+import { GoogleCalendar } from './google-calendar'
 import type { Barbeiro, Servico } from '@/types'
 
 const DURACOES = [10, 15, 20, 30, 45, 60, 90] as const
@@ -177,27 +178,9 @@ export function ModalBarbeiro({ open, onOpenChange, barbeiro, onSalvo }: Props) 
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="b-calendar">Google Calendar ID (opcional)</Label>
-            <Input
-              id="b-calendar"
-              value={form.calendar_id}
-              onChange={(e) => setForm({ ...form, calendar_id: e.target.value })}
-              placeholder="seu-id@group.calendar.google.com"
-              className="font-mono text-xs"
-            />
-            <p className="text-[11px] text-slate-500">
-              Use o ID do calendário compartilhado com a integração.{' '}
-              <a
-                href="https://support.google.com/calendar/answer/37083"
-                target="_blank"
-                rel="noopener"
-                className="underline text-brand"
-              >
-                Como obter
-              </a>
-            </p>
-          </div>
+          {barbeiro ? <GoogleCalendar key={barbeiro.id} barberId={barbeiro.id} /> : (
+            <p className="text-xs text-slate-500">Após salvar o barbeiro, edite o cadastro para conectar o Google Agenda.</p>
+          )}
 
           <div className="flex items-center justify-between rounded-md border border-brand-100 bg-brand-50/40 px-3 py-2">
             <div>
