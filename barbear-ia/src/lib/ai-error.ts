@@ -6,12 +6,18 @@ export function classificarFalhaIA(error: unknown) {
   for (let i = 0; i < 5 && atual && typeof atual === 'object'; i++) {
     const e = atual as Record<string, unknown>
     if (!status && typeof e.statusCode === 'number') status = e.statusCode
-    for (const key of ['message', 'responseBody', 'type', 'code']) {
+    for (const key of ['name', 'message', 'responseBody', 'type', 'code']) {
       if (typeof e[key] === 'string') textos.push(e[key] as string)
     }
     atual = e.cause
   }
   const texto = textos.join(' ').toLowerCase()
+  if (/noobjectgeneratederror|nooutputgeneratederror|typevalidationerror|jsonparseerror/.test(texto))
+    return {
+      codigo: 'resposta_invalida',
+      status,
+      mensagem: 'A IA devolveu uma resposta incompleta ou fora do formato esperado. Tente novamente com um trecho menor. Nenhum dado foi salvo.',
+    }
   if (
     texto.includes('insufficient_funds') ||
     texto.includes('quota_for_entity_exceeded') ||

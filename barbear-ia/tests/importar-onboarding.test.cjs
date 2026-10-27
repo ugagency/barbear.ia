@@ -133,7 +133,7 @@ Module._load = function (request, parent, isMain) {
     }
   if (request === 'ai')
     return {
-      Output: { object: (v) => v },
+      Output: { object: (v) => v, json: () => ({ type: 'json' }) },
       generateText: async (options) => {
         chamadas.push(options)
         return { output: gerado }
@@ -294,4 +294,21 @@ test('indisponibilidade do Google não é apresentada como falha no texto ou PDF
   const falha = classificarFalhaIA({ statusCode: 503, message: 'servico indisponivel' })
   assert.equal(falha.codigo, 'provedor_indisponivel')
   assert.match(falha.mensagem, /temporariamente indisponível/)
+})
+
+test('rascunho preserva dados válidos e marca campos opcionais inválidos como pendentes', () => {
+  const { validarRascunhoExtraido } = require('../src/lib/onboarding-import.ts')
+  const v = vazio()
+  v.barbearia.nome = 'Léo Mariano'
+  v.perfil.whatsapp_responsavel = 'não informado'
+  delete v.perfil.cidade
+  v.regras.antecedencia_min = 120
+  const r = validarRascunhoExtraido(v)
+  assert.equal(r.success, true)
+  assert.equal(r.data.barbearia.nome, 'Léo Mariano')
+  assert.equal(r.data.perfil.whatsapp_responsavel, null)
+  assert.equal(r.data.perfil.cidade, null)
+  assert.equal(r.data.regras.antecedencia_min, 120)
+  assert.match(r.data.pendencias.join(' '), /whatsapp_responsavel/)
+  assert.equal(validarRascunhoExtraido({ foo: 'bar' }).success, false)
 })

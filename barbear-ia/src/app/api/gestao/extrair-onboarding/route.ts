@@ -6,6 +6,7 @@ import { classificarFalhaIA } from '@/lib/ai-error'
 import { getPlatformAdmin } from '@/lib/platform-admin'
 import {
   extracaoSchema,
+  validarRascunhoExtraido,
   INSTRUCAO_EXTRACAO,
   MAX_PDF_BYTES,
   MAX_TEXTO,
@@ -70,10 +71,10 @@ export async function POST(request: Request) {
       model: google((process.env.ONBOARDING_AI_MODEL || 'gemini-3.8-flash').replace(/^google\//, '')),
       // O esquema completo de onboarding pode ultrapassar a complexidade aceita pelo Google.
       // JSON continua obrigatório; o SDK e safeParse validam o resultado integralmente.
-      providerOptions: { google: { structuredOutputs: false } },
+      providerOptions: { google: { structuredOutputs: false, thinkingConfig: { thinkingLevel: 'low' } } },
       system: `${INSTRUCAO_EXTRACAO}\nResponda somente com um objeto JSON que siga este esquema:\n${JSON.stringify(z.toJSONSchema(extracaoSchema))}`,
       messages: [{ role: 'user', content }],
-      output: Output.object({ schema: extracaoSchema }),
+      output: Output.json(),
       maxOutputTokens: 12000,
       maxRetries: 1,
       abortSignal: AbortSignal.any([
@@ -81,12 +82,14 @@ export async function POST(request: Request) {
         AbortSignal.timeout(110000),
       ]),
     })
-    const validado = extracaoSchema.safeParse(output)
-    if (!validado.success)
+    const validado = validarRascunhoExtraido(output)
+    if (!validado.success) {
+      console.warn('onboarding_ai_validation', { campos: validado.error.issues.map(i => i.path.filter(p => typeof p !== 'number').join('.')).slice(0, 20) })
       return resposta(
         'A leitura ficou incompleta. Tente um trecho menor ou um PDF mais legível.',
         422,
       )
+    }
     return Response.json(
       { extracao: validado.data },
       { headers: { 'Cache-Control': 'no-store' } },
