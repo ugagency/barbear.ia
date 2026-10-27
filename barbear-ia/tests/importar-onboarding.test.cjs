@@ -272,3 +272,34 @@ test('aceita OIDC somente no contexto Vercel, sem token no ambiente', async () =
     if (oidc) process.env.VERCEL_OIDC_TOKEN = oidc
   }
 })
+
+test('diagnóstico identifica verificação de conta e autenticação sem revelar erro bruto', () => {
+  const { classificarFalhaGateway } = require('../src/lib/gateway-error.ts')
+  const verificacao = classificarFalhaGateway({
+    statusCode: 403,
+    cause: {
+      responseBody: JSON.stringify({
+        code: 'customer_verification_required',
+        secret: 'nao_expor',
+      }),
+    },
+  })
+  assert.equal(verificacao.codigo, 'verificacao_da_conta')
+  assert.equal(verificacao.mensagem.includes('nao_expor'), false)
+  assert.equal(
+    classificarFalhaGateway({
+      statusCode: 401,
+      message: 'No authentication provided',
+    }).codigo,
+    'autenticacao_ausente',
+  )
+  assert.equal(
+    classificarFalhaGateway({ statusCode: 401, message: 'Invalid OIDC token' })
+      .codigo,
+    'oidc_recusado',
+  )
+  assert.equal(
+    classificarFalhaGateway({ statusCode: 402 }).codigo,
+    'limite_de_uso',
+  )
+})

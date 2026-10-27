@@ -1,5 +1,6 @@
 import { generateText, Output } from 'ai'
 import type { UserContent } from 'ai'
+import { classificarFalhaGateway } from '@/lib/gateway-error'
 import { getPlatformAdmin } from '@/lib/platform-admin'
 import {
   extracaoSchema,
@@ -83,30 +84,20 @@ export async function POST(request: Request) {
       { headers: { 'Cache-Control': 'no-store' } },
     )
   } catch (error) {
-    // Do not log uploaded documents, extracted personal data, credentials or raw provider errors.
-    const code =
-      typeof error === 'object' && error !== null && 'statusCode' in error
-        ? Number(error.statusCode)
-        : 0
-    if (code === 401 || code === 403)
-      return resposta(
-        'A conexão de IA do projeto precisa ser configurada ou autorizada.',
-        503,
-      )
-    if (code === 402)
-      return resposta(
-        'A conexão de IA está sem saldo ou atingiu seu limite de uso.',
-        503,
-      )
-    if (code === 429)
-      return resposta(
-        'Há muitas leituras no momento. Tente novamente em alguns instantes.',
-        429,
-      )
+    const falha = classificarFalhaGateway(error)
+    // Somente códigos operacionais; nunca o erro bruto ou conteúdo enviado.
+    console.warn('onboarding_ai_failure', {
+      codigo: falha.codigo,
+      status: falha.status,
+    })
     if (request.signal.aborted) return resposta('Leitura cancelada.', 499)
     return resposta(
-      'Não foi possível concluir a extração. Confira se o PDF está legível e sem senha, ou cole o texto.',
-      502,
+      falha.mensagem,
+      falha.status === 429
+        ? 429
+        : [401, 402, 403].includes(falha.status)
+          ? 503
+          : 502,
     )
   }
 }
