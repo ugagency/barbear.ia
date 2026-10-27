@@ -9,9 +9,15 @@ export function classificarFalhaIA(error: unknown) {
     for (const key of ['name', 'message', 'responseBody', 'type', 'code']) {
       if (typeof e[key] === 'string') textos.push(e[key] as string)
     }
-    atual = e.cause
+    atual = e.lastError ?? e.cause
   }
   const texto = textos.join(' ').toLowerCase()
+  if (/fetch failed|econnreset|etimedout|enotfound|econnrefused/.test(texto))
+    return {
+      codigo: 'falha_de_rede',
+      status,
+      mensagem: 'Não foi possível conectar ao Google Gemini. Tente novamente em alguns instantes. Nenhum dado foi salvo.',
+    }
   if (/noobjectgeneratederror|nooutputgeneratederror|typevalidationerror|jsonparseerror/.test(texto))
     return {
       codigo: 'resposta_invalida',
