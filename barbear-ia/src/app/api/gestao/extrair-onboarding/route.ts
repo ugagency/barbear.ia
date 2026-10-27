@@ -1,6 +1,7 @@
 import { generateText, Output } from 'ai'
+import { google } from '@ai-sdk/google'
 import type { UserContent } from 'ai'
-import { classificarFalhaGateway } from '@/lib/gateway-error'
+import { classificarFalhaIA } from '@/lib/ai-error'
 import { getPlatformAdmin } from '@/lib/platform-admin'
 import {
   extracaoSchema,
@@ -50,8 +51,11 @@ export async function POST(request: Request) {
     if (!new TextDecoder().decode(bytes.slice(0, 1024)).includes('%PDF-'))
       return resposta('O arquivo não é um PDF válido.', 400)
   }
-  // O SDK resolve API key ou OIDC do contexto confiável da requisição Vercel.
-  // Não exigir VERCEL_OIDC_TOKEN no process.env: em Functions ele pode vir só no contexto.
+  if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim())
+    return resposta(
+      'Configure GOOGLE_GENERATIVE_AI_API_KEY no servidor para habilitar a extração pelo Google Gemini.',
+      503,
+    )
   const content: UserContent = [
     {
       type: 'text',
@@ -62,7 +66,7 @@ export async function POST(request: Request) {
     content.push({ type: 'file', mediaType: 'application/pdf', data: bytes })
   try {
     const { output } = await generateText({
-      model: process.env.ONBOARDING_AI_MODEL || 'google/gemini-2.5-flash',
+      model: google((process.env.ONBOARDING_AI_MODEL || 'gemini-2.5-flash').replace(/^google\//, '')),
       system: INSTRUCAO_EXTRACAO,
       messages: [{ role: 'user', content }],
       output: Output.object({ schema: extracaoSchema }),
@@ -84,7 +88,7 @@ export async function POST(request: Request) {
       { headers: { 'Cache-Control': 'no-store' } },
     )
   } catch (error) {
-    const falha = classificarFalhaGateway(error)
+    const falha = classificarFalhaIA(error)
     // Somente códigos operacionais; nunca o erro bruto ou conteúdo enviado.
     console.warn('onboarding_ai_failure', {
       codigo: falha.codigo,

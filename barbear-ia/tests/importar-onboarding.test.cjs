@@ -136,15 +136,6 @@ Module._load = function (request, parent, isMain) {
       Output: { object: (v) => v },
       generateText: async (options) => {
         chamadas.push(options)
-        if (!process.env.AI_GATEWAY_API_KEY) {
-          try {
-            require('@vercel/oidc').getVercelOidcTokenSync()
-          } catch {
-            throw Object.assign(new Error('Credencial indisponível no teste'), {
-              statusCode: 401,
-            })
-          }
-        }
         return { output: gerado }
       },
     }
@@ -195,19 +186,24 @@ test('rejeita conteúdo vazio, texto longo e arquivos falsos ou grandes', async 
   assert.equal((await POST(request('', grande))).status, 400)
   assert.equal(chamadas.length, 0)
 })
-test('retorna orientação quando o SDK não encontra nenhuma autenticação', async () => {
+test('chave do Gateway e OIDC não substituem a chave direta do Google', async () => {
   autorizado = true
   chamadas = []
-  const key = process.env.AI_GATEWAY_API_KEY
+  const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY
   const oidc = process.env.VERCEL_OIDC_TOKEN
-  delete process.env.AI_GATEWAY_API_KEY
-  delete process.env.VERCEL_OIDC_TOKEN
+  const gateway = process.env.AI_GATEWAY_API_KEY
+  delete process.env.GOOGLE_GENERATIVE_AI_API_KEY
+  process.env.VERCEL_OIDC_TOKEN = 'oidc-de-teste'
+  process.env.AI_GATEWAY_API_KEY = 'gateway-de-teste'
   try {
     assert.equal((await POST(request('Nome: Barbearia Teste'))).status, 503)
-    assert.equal(chamadas.length, 1)
+    assert.equal(chamadas.length, 0)
   } finally {
-    if (key) process.env.AI_GATEWAY_API_KEY = key
+    if (key) process.env.GOOGLE_GENERATIVE_AI_API_KEY = key
     if (oidc) process.env.VERCEL_OIDC_TOKEN = oidc
+    else delete process.env.VERCEL_OIDC_TOKEN
+    if (gateway) process.env.AI_GATEWAY_API_KEY = gateway
+    else delete process.env.AI_GATEWAY_API_KEY
   }
 })
 test('texto e PDF são enviados juntos; a extração retorna rascunho sem escrever no banco', async () => {
@@ -216,8 +212,8 @@ test('texto e PDF são enviados juntos; a extração retorna rascunho sem escrev
   gerado = vazio()
   gerado.barbearia.nome = 'Barbearia Teste'
   gerado.profissionais = [profissional]
-  const old = process.env.AI_GATEWAY_API_KEY
-  process.env.AI_GATEWAY_API_KEY = 'credencial-simulada'
+  const old = process.env.GOOGLE_GENERATIVE_AI_API_KEY
+  process.env.GOOGLE_GENERATIVE_AI_API_KEY = 'credencial-simulada'
   try {
     const pdf = new File(['%PDF-1.7\nfixture'], 'questionario.pdf', {
       type: 'application/pdf',
@@ -235,71 +231,48 @@ test('texto e PDF são enviados juntos; a extração retorna rascunho sem escrev
     assert.match(chamadas[0].messages[0].content[0].text, /Correção/)
     assert.equal(chamadas[0].maxRetries, 0)
   } finally {
-    if (old) process.env.AI_GATEWAY_API_KEY = old
-    else delete process.env.AI_GATEWAY_API_KEY
+    if (old) process.env.GOOGLE_GENERATIVE_AI_API_KEY = old
+    else delete process.env.GOOGLE_GENERATIVE_AI_API_KEY
   }
 })
 
-test('aceita OIDC somente no contexto Vercel, sem token no ambiente', async () => {
-  autorizado = true
-  chamadas = []
-  gerado = vazio()
-  gerado.barbearia.nome = 'Barbearia de teste'
-  const symbol = Symbol.for('@vercel/request-context')
-  const anterior = globalThis[symbol]
-  const key = process.env.AI_GATEWAY_API_KEY
-  const oidc = process.env.VERCEL_OIDC_TOKEN
-  delete process.env.AI_GATEWAY_API_KEY
-  delete process.env.VERCEL_OIDC_TOKEN
-  globalThis[symbol] = {
-    get: () => ({
-      headers: { 'x-vercel-oidc-token': 'oidc-fixture-contexto' },
-    }),
-  }
-  try {
-    assert.equal(
-      require('@vercel/oidc').getVercelOidcTokenSync(),
-      'oidc-fixture-contexto',
-    )
-    const r = await POST(request('Nome: Barbearia de teste'))
-    assert.equal(r.status, 200)
-    assert.equal((await r.json()).extracao.barbearia.nome, 'Barbearia de teste')
-    assert.equal(chamadas.length, 1)
-  } finally {
-    if (anterior === undefined) delete globalThis[symbol]
-    else globalThis[symbol] = anterior
-    if (key) process.env.AI_GATEWAY_API_KEY = key
-    if (oidc) process.env.VERCEL_OIDC_TOKEN = oidc
-  }
-})
-
-test('diagnóstico identifica verificação de conta e autenticação sem revelar erro bruto', () => {
-  const { classificarFalhaGateway } = require('../src/lib/gateway-error.ts')
-  const verificacao = classificarFalhaGateway({
-    statusCode: 403,
-    cause: {
-      responseBody: JSON.stringify({
-        code: 'customer_verification_required',
-        secret: 'nao_expor',
-      }),
+test('provedor Google envia texto e PDF diretamente, sem chamar o Gateway', async () => {
+  const { createGoogle } = require('@ai-sdk/google')
+  const { generateText, Output } = load.call(Module, 'ai', module, false)
+  let destino, envio, apiKey
+  const provider = createGoogle({
+    apiKey: 'chave-de-teste',
+    fetch: async (url, init) => {
+      destino = String(url)
+      envio = JSON.parse(init.body)
+      apiKey = new Headers(init.headers).get('x-goog-api-key')
+      return Response.json({
+        candidates: [{ content: { role: 'model', parts: [{ text: JSON.stringify(vazio()) }] }, finishReason: 'STOP' }],
+        usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 },
+      })
     },
   })
-  assert.equal(verificacao.codigo, 'verificacao_da_conta')
-  assert.equal(verificacao.mensagem.includes('nao_expor'), false)
-  assert.equal(
-    classificarFalhaGateway({
-      statusCode: 401,
-      message: 'No authentication provided',
-    }).codigo,
-    'autenticacao_ausente',
-  )
-  assert.equal(
-    classificarFalhaGateway({ statusCode: 401, message: 'Invalid OIDC token' })
-      .codigo,
-    'oidc_recusado',
-  )
-  assert.equal(
-    classificarFalhaGateway({ statusCode: 402 }).codigo,
-    'limite_de_uso',
-  )
+  const result = await generateText({
+    model: provider('gemini-2.5-flash'),
+    messages: [{ role: 'user', content: [
+      { type: 'text', text: 'Nome: Teste' },
+      { type: 'file', mediaType: 'application/pdf', data: new TextEncoder().encode('%PDF-1.7 fixture') },
+    ] }],
+    output: Output.object({ schema: extracaoSchema }),
+    maxRetries: 0,
+  })
+  assert.equal(new URL(destino).hostname, 'generativelanguage.googleapis.com')
+  assert.equal(apiKey, 'chave-de-teste')
+  assert.equal(envio.contents[0].parts[1].inlineData.mimeType, 'application/pdf')
+  assert.deepEqual(result.output, vazio())
+})
+
+test('diagnóstico de acesso Google não expõe a resposta bruta', () => {
+  const { classificarFalhaIA } = require('../src/lib/ai-error.ts')
+  const falha = classificarFalhaIA({ statusCode: 403, responseBody: 'API_KEY_INVALID segredo-nao-expor' })
+  assert.equal(falha.codigo, 'autenticacao_recusada')
+  assert.match(falha.mensagem, /Google Gemini/)
+  assert.equal(falha.mensagem.includes('segredo-nao-expor'), false)
+  assert.equal(classificarFalhaIA({ statusCode: 402 }).codigo, 'limite_de_uso')
+  assert.equal(classificarFalhaIA({ statusCode: 429 }).codigo, 'muitas_solicitacoes')
 })
