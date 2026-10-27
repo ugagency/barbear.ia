@@ -253,7 +253,7 @@ test('provedor Google envia texto e PDF diretamente, sem chamar o Gateway', asyn
     },
   })
   const result = await generateText({
-    model: provider('gemini-2.5-flash'),
+    model: provider('gemini-3.8-flash'),
     messages: [{ role: 'user', content: [
       { type: 'text', text: 'Nome: Teste' },
       { type: 'file', mediaType: 'application/pdf', data: new TextEncoder().encode('%PDF-1.7 fixture') },
